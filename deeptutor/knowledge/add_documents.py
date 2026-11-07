@@ -679,8 +679,14 @@ async def add_documents(
     base_url: Optional[str] = None,
     allow_duplicates: bool = False,
     accepted_indexing_snapshot=None,
+    source_root: str | Path | None = None,
 ) -> int:
-    """Convenience function used by CLI wrappers."""
+    """Convenience function used by CLI wrappers.
+
+    ``source_root`` keeps a folder import's relative paths instead of
+    flattening every file to its basename; callers importing a generated tree
+    (for example normalized preprocessed papers) pass the tree's root.
+    """
     from deeptutor.knowledge.manager import KnowledgeBaseManager
 
     manager = KnowledgeBaseManager(base_dir=base_dir)
@@ -721,7 +727,11 @@ async def add_documents(
                 manager=manager,
             )
 
-        new_files = adder.add_documents(source_files, allow_duplicates=allow_duplicates)
+        new_files = adder.add_documents(
+            source_files,
+            allow_duplicates=allow_duplicates,
+            source_root=source_root,
+        )
         if not new_files:
             manager.update_kb_status(
                 name=kb_name,

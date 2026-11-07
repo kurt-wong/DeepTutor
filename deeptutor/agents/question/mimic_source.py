@@ -98,6 +98,25 @@ def _parse_sync(
 ) -> tuple[list[QuizTemplate], dict[str, str]]:
     output_base.mkdir(parents=True, exist_ok=True)
 
+    if paper_mode in {"parsed", "preprocessed"}:
+        # A local slicing pipeline may already have anchored every question to
+        # its source lines. Reuse those units instead of asking an LLM to find
+        # them again (and instead of requiring the MinerU "auto/" layout).
+        from deeptutor.services.preprocessed_papers import resolve_manifest
+
+        try:
+            manifest = resolve_manifest(paper_path)
+        except ValueError as exc:
+            raise RuntimeError(str(exc)) from exc
+        if manifest is not None:
+            from deeptutor.agents.question.preprocessed_source import (
+                parse_preprocessed_paper_to_templates,
+            )
+
+            return parse_preprocessed_paper_to_templates(
+                manifest, max_questions=max_questions
+            )
+
     if paper_mode == "parsed":
         # Caller already has a parsed directory; skip the parse step. Its own
         # dir doubles as the questions-output dir (legacy behavior).

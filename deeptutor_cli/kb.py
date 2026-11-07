@@ -380,6 +380,160 @@ def register(app: typer.Typer) -> None:
         else:
             console.print("[yellow]No new unique documents were indexed.[/]")
 
+    @app.command("import-preprocessed")
+    def kb_import_preprocessed(
+        root: str = typer.Argument(
+            ...,
+            help="Folder holding *.manifest.json + *.annotated.md (for example resliced-pilot).",
+        ),
+        kb: Optional[str] = typer.Option(
+            None, "--kb", help="Knowledge base to index the normalized papers into."
+        ),
+        grade: Optional[str] = typer.Option(None, "--grade", help="Only papers under this grade."),
+        subject: Optional[str] = typer.Option(
+            None, "--subject", help="Only papers under this subject."
+        ),
+        limit: int = typer.Option(0, "--limit", help="Maximum papers to import (0 = all)."),
+        to_bank: bool = typer.Option(
+            False, "--to-bank", help="Also upsert the source units into the Question Bank."
+        ),
+        dry_run: bool = typer.Option(
+            False, "--dry-run", help="Print what would be imported; write nothing."
+        ),
+        out: Optional[str] = typer.Option(
+            None, "--out", help="Bundle output directory (defaults to data/user/imports/preprocessed)."
+        ),
+        fmt: str = typer.Option("rich", "--format", "-f", help="Output format: rich | json."),
+    ) -> None:
+        """Import anchored preprocessing artifacts without re-OCR or re-slicing.
+
+        Normalized Markdown goes into the knowledge base; ``--to-bank`` writes
+        the source units themselves into Learning Space -> Question Bank with
+        ``source=import`` so they stay out of the mistake set until answered.
+        """
+        from datetime import datetime
+
+        from deeptutor.services.preprocessed_papers import (
+            discover_papers,
+            import_to_question_bank,
+            load_preprocessed_paper,
+            write_bundle,
+        )
+
+        try:
+            manifests = discover_papers(root, grade=grade, subject=subject)
+        except ValueError as exc:
+            raise typer.BadParameter(str(exc), param_hint="ROOT") from exc
+        if limit > 0:
+            manifests = manifests[:limit]
+        if not manifests:
+            console.print("[yellow]No preprocessed paper manifests found.[/]")
+            raise typer.Exit(code=1)
+
+        papers = []
+        failures: list[dict[str, str]] = []
+        for manifest in manifests:
+            try:
+                papers.append(load_preprocessed_paper(manifest, root=root))
+            except (OSError, ValueError) as exc:
+                failures.append({"manifest": str(manifest), "error": str(exc)})
+
+        payload: dict[str, object] = {
+            "root": str(Path(root).expanduser().resolve()),
+            "papers": len(papers),
+            "units": sum(len(paper.units) for paper in papers),
+            "failures": failures,
+            "dry_run": dry_run,
+        }
+        if dry_run:
+            payload["preview"] = [
+                {
+                    "paper_id": paper.paper_id,
+                    "title": paper.title,
+                    "units": len(paper.units),
+                    "first_unit": paper.units[0].unit_id if paper.units else "",
+                }
+                for paper in papers
+            ]
+            if fmt == "json":
+                console.print_json(json.dumps(payload, ensure_ascii=False))
+            else:
+                console.print(
+                    f"[bold]{len(papers)}[/] paper(s), "
+                    f"[bold]{payload['units']}[/] unit(s) ready "
+                    f"from [dim]{payload['root']}[/]"
+                )
+                for item in payload["preview"]:
+                    console.print(
+                        f"  {item['paper_id']}  "
+                        f"[dim]{item['units']} units, first {item['first_unit'] or '-'}[/]"
+                    )
+                for failure in failures:
+                    console.print(f"[red]failed[/] {failure['manifest']}: {failure['error']}")
+            return
+
+        if out:
+            bundle_dir = Path(out).expanduser().resolve()
+        else:
+            stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+            bundle_dir = (
+                get_path_service().get_user_root() / "imports" / "preprocessed" / stamp
+            )
+        index = write_bundle(papers, bundle_dir)
+        payload["bundle"] = str(bundle_dir)
+        payload["markdown_files"] = [entry["markdown"] for entry in index["papers"]]
+
+        indexed = 0
+        if kb:
+            mgr = _get_kb_manager()
+            if kb not in mgr.list_knowledge_bases():
+                console.print(f"[red]Knowledge base '{kb}' not found.[/]")
+                raise typer.Exit(code=1)
+            from deeptutor.knowledge.add_documents import add_documents
+
+            console.print(f"Indexing {len(index['papers'])} paper(s) into [bold]{kb}[/]...")
+            try:
+                indexed = asyncio.run(
+                    add_documents(
+                        kb_name=kb,
+                        source_files=payload["markdown_files"],
+                        base_dir=str(mgr.base_dir),
+                        allow_duplicates=False,
+                        source_root=str(bundle_dir),
+                    )
+                )
+            except Exception as exc:
+                console.print(f"[red]Knowledge-base import failed: {exc}[/]")
+                raise typer.Exit(code=1) from exc
+            payload["indexed"] = indexed
+
+        bank_written = 0
+        bank_skipped = 0
+        if to_bank:
+            try:
+                bank_written, bank_skipped = asyncio.run(
+                    import_to_question_bank(papers)
+                )
+            except Exception as exc:
+                console.print(f"[red]Question-bank import failed: {exc}[/]")
+                raise typer.Exit(code=1) from exc
+            payload["question_bank_written"] = bank_written
+            payload["question_bank_skipped"] = bank_skipped
+
+        if fmt == "json":
+            console.print_json(json.dumps(payload, ensure_ascii=False))
+            return
+        console.print(f"[green]Bundle written:[/] {bundle_dir}")
+        if kb:
+            console.print(f"[green]Indexed {indexed} paper(s) into '{kb}'.[/]")
+        if to_bank:
+            console.print(
+                f"[green]Question Bank: {bank_written} unit(s) written[/]"
+                + (f", {bank_skipped} skipped" if bank_skipped else "")
+            )
+        for failure in failures:
+            console.print(f"[red]failed[/] {failure['manifest']}: {failure['error']}")
+
     @app.command("delete")
     def kb_delete(
         name: str = typer.Argument(..., help="KB name."),
