@@ -1,0 +1,158 @@
+{
+ "generated_from": "qcore_student_integration_01 (read-only instance projection)",
+ "mapping": "question_id -> source_document_id (verbatim field mapping)",
+ "entries": {
+  "8e11c8bb-795d-441b-9a54-afc95e9b9179": {
+   "source_document_id": "2019北京高考真题英语（教师版）(1)",
+   "printed_number": "1"
+  },
+  "e0f2d284-78d5-4296-803c-7955c8c3e5a2": {
+   "source_document_id": "2020全国I卷高考真题化学（教师版）(1)",
+   "printed_number": "1"
+  },
+  "172c2ebd-f9a6-43c8-9e4f-5a3a625ce831": {
+   "source_document_id": "2019江苏高考真题语文（教师版）(1)",
+   "printed_number": "1"
+  },
+  "bbec6f08-6fbf-47ea-84ca-5c066ec5191e": {
+   "source_document_id": "2019江苏高考真题语文（教师版）(1)",
+   "printed_number": "10"
+  },
+  "855a1700-3f38-40b2-a56d-ea18928e8b64": {
+   "source_document_id": "2020全国I卷高考真题化学（教师版）(1)",
+   "printed_number": "10"
+  },
+  "3bb735ae-47ba-4ac2-9a71-82e33a2a1759": {
+   "source_document_id": "2020全国I卷高考真题化学（教师版）(1)",
+   "printed_number": "11"
+  },
+  "08e57aa7-28b2-4d86-a05d-f490ab1601a7": {
+   "source_document_id": "2019北京高考真题英语（教师版）(1)",
+   "printed_number": "11"
+  },
+  "56f070b4-5da0-41fc-af74-bbb8a0d69460": {
+   "source_document_id": "2019江苏高考真题语文（教师版）(1)",
+   "printed_number": "11"
+  },
+  "87b04fc6-0042-4cca-bdf9-4622728bdba6": {
+   "source_document_id": "2020全国I卷高考真题化学（教师版）(1)",
+   "printed_number": "12"
+  },
+  "74a60d7c-3d29-49e4-9da9-38393ece21d7": {
+   "source_document_id": "2019江苏高考真题语文（教师版）(1)",
+   "printed_number": "12"
+  },
+  "258b156d-882a-49b0-91db-92dc44d10c60": {
+   "source_document_id": "2019江苏高考真题语文（教师版）(1)",
+   "printed_number": "13"
+  },
+  "f4b943b8-4648-4d3b-91c5-73593e2266b4": {
+   "source_document_id": "2019江苏高考真题语文（教师版）(1)",
+   "printed_number": "14"
+  },
+  "2ccc16d9-b429-48c0-902a-055ae1c2b7a3": {
+   "source_document_id": "2019江苏高考真题语文（教师版）(1)",
+   "printed_number": "15"
+  },
+  "7448a93d-9d18-4d20-b118-41fec1f99eb1": {
+   "source_document_id": "2020全国I卷高考真题化学（教师版）(1)",
+   "printed_number": "2"
+  },
+  "ad4db593-2581-43c6-aa1d-5c7ce2c87eb8": {
+   "source_document_id": "2019江苏高考真题语文（教师版）(1)",
+   "printed_number": "2"
+  },
+  "0683a9a0-8da8-45f2-9763-ed5ed407b731": {
+   "source_document_id": "2019江苏高考真题语文（教师版）(1)",
+   "printed_number": "3"
+  },
+  "9a135f17-21e1-42f0-85bb-d1ee41bd64b8": {
+   "source_document_id": "2020全国I卷高考真题化学（教师版）(1)",
+   "printed_number": "3"
+  },
+  "25127245-7b96-4523-b01a-89393465273f": {
+   "source_document_id": "2019北京高考真题英语（教师版）(1)",
+   "printed_number": "31"
+  },
+  "7c8feb2c-2203-4b7f-88cc-fb4b7a8e357c": {
+   "source_document_id": "2019北京高考真题英语（教师版）(1)",
+   "printed_number": "34"
+  },
+  "76b27fb5-d07d-4462-9cc5-ccb8a253d644": {
+   "source_document_id": "2019北京高考真题英语（教师版）(1)",
+   "printed_number": "38"
+  },
+  "ad0c157e-4b21-42c0-ba03-0a9f93057caa": {
+   "source_document_id": "2020全国I卷高考真题化学（教师版）(1)",
+   "printed_number": "4"
+  },
+  "f17b6960-fec2-495e-be21-1f57108d3afa": {
+   "source_document_id": "2019北京高考真题英语（教师版）(1)",
+   "printed_number": "4"
+  },
+  "39fe62b2-bac8-497e-95b2-231d52b328bb": {
+   "source_document_id": "2019江苏高考真题语文（教师版）(1)",
+   "printed_number": "4"
+  },
+  "34ab7e84-d5b7-48cc-82d5-2240c417d7b8": {
+   "source_document_id": "2019北京高考真题英语（教师版）(1)",
+   "printed_number": "42"
+  },
+  "f0cae84d-24f9-4937-8bce-8ae30a0e2b2a": {
+   "source_document_id": "2019北京高考真题英语（教师版）(1)",
+   "printed_number": "46"
+  },
+  "821c1ad8-1ca9-4ab5-8204-7ea33b203711": {
+   "source_document_id": "2020全国I卷高考真题化学（教师版）(1)",
+   "printed_number": "5"
+  },
+  "10dadcf7-d6c7-4360-8b17-0f5fd4299a62": {
+   "source_document_id": "2019江苏高考真题语文（教师版）(1)",
+   "printed_number": "5"
+  },
+  "022f5ca6-d92f-4ee3-b86b-3275cbe2af26": {
+   "source_document_id": "2019江苏高考真题语文（教师版）(1)",
+   "printed_number": "6"
+  },
+  "59fea81d-92ab-497b-83cc-1a3e362bdb09": {
+   "source_document_id": "2020全国I卷高考真题化学（教师版）(1)",
+   "printed_number": "6"
+  },
+  "bc137e11-d437-4520-b173-ba9485f710fb": {
+   "source_document_id": "2020全国I卷高考真题化学（教师版）(1)",
+   "printed_number": "7"
+  },
+  "31616744-2670-46e8-906b-2142dd1c7474": {
+   "source_document_id": "2019江苏高考真题语文（教师版）(1)",
+   "printed_number": "7"
+  },
+  "c0bb0501-33cd-4eec-b307-87b00542ccfc": {
+   "source_document_id": "2019北京高考真题英语（教师版）(1)",
+   "printed_number": "7"
+  },
+  "65f5361b-5a36-4711-983c-e81bb29e4bdb": {
+   "source_document_id": "2019江苏高考真题语文（教师版）(1)",
+   "printed_number": "8"
+  },
+  "5104c411-0acd-4a48-8b99-a67485406b7b": {
+   "source_document_id": "2020全国I卷高考真题化学（教师版）(1)",
+   "printed_number": "8"
+  },
+  "2bc45eca-0102-42dc-bf54-0f2763d9f8ba": {
+   "source_document_id": "2019江苏高考真题语文（教师版）(1)",
+   "printed_number": "9"
+  },
+  "9050854b-2b4f-4642-b920-740fe5a59482": {
+   "source_document_id": "2020全国I卷高考真题化学（教师版）(1)",
+   "printed_number": "9"
+  },
+  "db746bee-1af5-4ae0-9995-2ec894269630": {
+   "source_document_id": "2019北京高考真题英语（教师版）(1)",
+   "printed_number": null
+  },
+  "c5b7b1b8-f959-4eb3-b324-57a53eeaea6e": {
+   "source_document_id": "2019北京高考真题英语（教师版）(1)",
+   "printed_number": null
+  }
+ }
+}

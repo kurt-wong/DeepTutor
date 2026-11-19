@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import csv
 import io
+import os
 import time
 from typing import Literal
 import zipfile
@@ -177,6 +178,189 @@ async def review(entry_id: int, payload: ReviewRequest):
         )
     except LookupError as exc:
         raise HTTPException(404, str(exc)) from exc
+    except ReviewConflict as exc:
+        raise HTTPException(409, str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
+
+
+class QcReviewRequest(BaseModel):
+    request_id: str = Field(min_length=1)
+    question_id: str = Field(min_length=1)
+    revision_id: str = Field(min_length=1)
+    version: int
+    rating: Rating
+    answer: str = ""
+
+
+# ---- QCore Student API 同源透传（B-2 Spike） --------------------------------
+# 浏览器直连 :8811 受 CORS 限制（部署入口白名单不含 :3782），故由后端 verbatim
+# 代理：数据源仍是 8811 Student API（唯一题目读取通道），零 QC 侧改动、零内容落库。
+import urllib.parse as _urlparse
+import urllib.request as _urlrequest
+
+QCORE_STUDENT_API_BASE = "http://127.0.0.1:8811"
+
+
+def _qcore_proxy_get(path: str):
+    url = QCORE_STUDENT_API_BASE + path
+    try:
+        with _urlrequest.urlopen(url, timeout=15) as resp:
+            body = resp.read()
+            return Response(content=body, media_type="application/json")
+    except _urlrequest.HTTPError as exc:
+        # 上游状态码（如 404=未发布不可读取）原样透传，不得吞成 502。
+        return Response(
+            content=exc.read(), status_code=exc.code, media_type="application/json"
+        )
+    except Exception as exc:  # noqa: BLE001 — 网络级不可达才报 502
+        raise HTTPException(502, f"qcore student api unreachable: {exc}") from exc
+
+
+@router.get("/qcore/proxy/student/questions")
+async def proxy_qcore_questions():
+    return _qcore_proxy_get("/student/questions")
+
+
+@router.get("/qcore/proxy/student/questions/{question_id}")
+async def proxy_qcore_question(question_id: str, submitted: bool = False):
+    q = f"?submitted={'true' if submitted else 'false'}"
+    return _qcore_proxy_get(
+        f"/student/questions/{_urlparse.quote(question_id)}{q}"
+    )
+
+
+# ---- PBA 隔离验收通道（QCORE-PRE-BULK-OWNER-ACCEPTANCE-01） ----------------
+# 与 qcore/proxy 同构的 verbatim 透传，指向**隔离验收库 API 实例**（:8813）。
+# 用途=Owner 目视验收候选数据；不触正式 :8811 与 qcore_g4_final_01。
+QCORE_ACCEPTANCE_API_BASE = os.environ.get(
+    "QCORE_ACCEPTANCE_API_BASE", "http://127.0.0.1:8813"
+)
+
+
+def _acceptance_proxy_get(path: str):
+    url = QCORE_ACCEPTANCE_API_BASE + path
+    try:
+        with _urlrequest.urlopen(url, timeout=15) as resp:
+            return Response(content=resp.read(), media_type="application/json")
+    except _urlrequest.HTTPError as exc:
+        return Response(content=exc.read(), status_code=exc.code, media_type="application/json")
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(502, f"acceptance api unreachable: {exc}") from exc
+
+
+@router.get("/qcore-acceptance/proxy/student/questions")
+async def proxy_acceptance_questions():
+    return _acceptance_proxy_get("/student/questions")
+
+
+@router.get("/qcore-acceptance/proxy/student/questions/{question_id}")
+async def proxy_acceptance_question(question_id: str, submitted: bool = False):
+    q = f"?submitted={'true' if submitted else 'false'}"
+    return _acceptance_proxy_get(
+        f"/student/questions/{_urlparse.quote(question_id)}{q}"
+    )
+
+
+# ---- PBA-R1 候选读取通道（含未发布/未完成候选，验收可见性≠学生可见性） ----
+# 指向隔离验收候选读取服务（:8814，只读，绑定 qcore_prebulk_accept_01）。
+# 用途=Owner 目视验收 64 道候选；不触正式 :8811/发布过滤/正式库。
+QCORE_CANDIDATES_API_BASE = os.environ.get(
+    "QCORE_CANDIDATES_API_BASE", "http://127.0.0.1:8814"
+)
+
+
+def _candidates_proxy_get(path: str):
+    url = QCORE_CANDIDATES_API_BASE + path
+    try:
+        with _urlrequest.urlopen(url, timeout=15) as resp:
+            return Response(content=resp.read(), media_type="application/json")
+    except _urlrequest.HTTPError as exc:
+        return Response(content=exc.read(), status_code=exc.code, media_type="application/json")
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(502, f"acceptance candidates api unreachable: {exc}") from exc
+
+
+@router.get("/qcore-candidates/proxy/student/questions")
+async def proxy_candidates_questions():
+    return _candidates_proxy_get("/student/questions")
+
+
+@router.get("/qcore-candidates/proxy/student/questions/{question_id}")
+async def proxy_candidates_question(question_id: str, submitted: bool = False):
+    q = f"?submitted={'true' if submitted else 'false'}"
+    return _candidates_proxy_get(
+        f"/student/questions/{_urlparse.quote(question_id)}{q}"
+    )
+
+
+@router.get("/qcore/state/{question_id}")
+async def qcore_state(question_id: str, revision_id: str):
+    """Review state for a QCore identity (question_id + revision_id)."""
+    from deeptutor.services.practice.qc_learning import QcLearningStore
+
+    return await asyncio.to_thread(
+        QcLearningStore().state,
+        question_id,
+        revision_id,
+    )
+
+
+def _verify_current_revision(question_id: str, revision_id: str) -> None:
+    """Revision 错配守卫：以 Student API 当前发布版本为准（唯一题目事实源）。
+
+    提交的 revision_id 必须等于当前可读 Question 的 revision_id，否则拒绝，
+    防止把作答误记到错误/过期 Revision。
+    """
+    import json as _j
+
+    try:
+        with _urlrequest.urlopen(
+            f"{QCORE_STUDENT_API_BASE}/student/questions/{_urlparse.quote(question_id)}",
+            timeout=15,
+        ) as resp:
+            data = _j.loads(resp.read())
+    except _urlrequest.HTTPError as exc:
+        if exc.code == 404:
+            raise HTTPException(409, "question revision not readable (unpublished or missing)")
+        raise HTTPException(502, f"qcore student api error: {exc.code}") from exc
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(502, f"qcore student api unreachable: {exc}") from exc
+    current = str(data.get("revision_id") or "")
+    if current and current != revision_id:
+        raise HTTPException(
+            409,
+            f"revision mismatch: submitted {revision_id[:8]}… but current is {current[:8]}…",
+        )
+
+
+@router.post("/qcore/review")
+async def qcore_review(payload: QcReviewRequest):
+    """Record a QCore practice submission as NATIVE learning records (C1 阶段2).
+
+    一次有效提交 → QuizAttempt(is_correct=None 未判分) + LearningEvidence
+    (result='ungraded') + 原生 SM-2 状态更新；身份=(question_id, revision_id)。
+    review_only：不产生官方判分、不创建 ErrorRecord。幂等键=request_id。
+    """
+    from deeptutor.services.practice.qc_learning import (
+        QcLearningStore,
+        RequestIdentityConflict,
+        ReviewConflict,
+    )
+
+    _verify_current_revision(payload.question_id, payload.revision_id)
+    try:
+        return await asyncio.to_thread(
+            QcLearningStore().record_submission,
+            payload.question_id,
+            payload.revision_id,
+            payload.request_id,
+            payload.version,
+            payload.rating,
+            payload.answer,
+        )
+    except RequestIdentityConflict as exc:
+        raise HTTPException(409, str(exc)) from exc
     except ReviewConflict as exc:
         raise HTTPException(409, str(exc)) from exc
     except ValueError as exc:

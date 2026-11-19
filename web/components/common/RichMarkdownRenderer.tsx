@@ -149,6 +149,8 @@ export default function RichMarkdownRenderer({
         const [remarkMathModule, rehypeKatexModule] = await Promise.all([
           import("remark-math"),
           import("rehype-katex"),
+          // AF2-D：mhchem 扩展注册 \ce{}/\pu{}（化学式/计量式）。
+          import("katex/contrib/mhchem"),
         ]);
         nextPlugins.remarkMath = remarkMathModule.default;
         nextPlugins.rehypeKatex = rehypeKatexModule.default;
@@ -717,7 +719,11 @@ export default function RichMarkdownRenderer({
   const rehypePlugins = useMemo(() => {
     const p: Array<any> = [];
     if (allowHtml && plugins.rehypeRaw) p.push(plugins.rehypeRaw as never);
-    if (enableMath && plugins.rehypeKatex) p.push(plugins.rehypeKatex as never);
+    if (enableMath && plugins.rehypeKatex) {
+      // AF2-D：不受支持的化学命令（\chemfig 等）受控回退——保留原文渲染
+      // （琥珀色），不抛错不吞内容；\ce 由 mhchem 扩展正常渲染。
+      p.push([plugins.rehypeKatex, { throwOnError: false, errorColor: "#b45309" }] as never);
+    }
     p.push(rehypeDirAuto);
     return p;
   }, [allowHtml, enableMath, plugins.rehypeRaw, plugins.rehypeKatex]);

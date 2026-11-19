@@ -15,6 +15,14 @@ import {
   type PracticeRef,
   type PracticeRating,
 } from '@/lib/practice-api'
+import { refKey, type PracticeSourceRef } from '@/lib/practice-source'
+import {
+  listQcorePracticeRefs,
+  loadQcorePracticeQuestion,
+  reviewQcorePractice,
+  type QcPracticeQuestion,
+} from '@/lib/qcore-adapter/practice-provider'
+import { QCorePracticeView } from '@/components/qcore/QCorePracticeView'
 
 const RATINGS: { value: PracticeRating; label: string; description: string }[] = [
   { value: 'again', label: 'Again', description: 'Practice again this round' },
@@ -26,16 +34,25 @@ const RATINGS: { value: PracticeRating; label: string; description: string }[] =
 export function PracticeSession({
   ids,
   questions,
+  sourceItems,
   onClose,
   backLabel,
 }: {
   ids?: number[]
   questions?: PracticeRef[]
+  /** B-2 Spike：Provider 给出的题源队列（qcore/notebook）。给定时优先于 ids/questions。 */
+  sourceItems?: PracticeSourceRef[]
   onClose: () => void
   backLabel?: string
 }) {
-  const [queue, setQueue] = useState<PracticeRef[]>(
-    () => questions ?? (ids ?? []).map(id => ({ id }))
+  const [queue, setQueue] = useState<PracticeSourceRef[]>(
+    () =>
+      sourceItems ??
+      ((questions ?? (ids ?? []).map(id => ({ id }))) as PracticeRef[]).map(q => ({
+        kind: 'notebook' as const,
+        entryId: q.id,
+        workspaceId: q.content_workspace_id,
+      }))
   )
   const [total] = useState(queue.length)
   const [skipped, setSkipped] = useState(0)
@@ -97,18 +114,14 @@ export function PracticeSession({
         </div>
       ) : (
         <PracticeTurn
-          key={`${index}:${queue[index].content_workspace_id}:${queue[index].id}`}
-          id={queue[index].id}
-          workspaceId={queue[index].content_workspace_id}
+          key={`${index}:${refKey(queue[index])}`}
+          sourceRef={queue[index]}
           onBusy={setSaving}
           onSaved={(due, rating) => {
             if (rating === 'again') setQueue(current => [...current, current[index]])
             else setSaved(value => value + 1)
             if (due !== null) {
-              dueDates.current.set(
-                JSON.stringify([queue[index].content_workspace_id, queue[index].id]),
-                due
-              )
+              dueDates.current.set(refKey(queue[index]), due)
               setNextDue(Math.min(...dueDates.current.values()))
             }
             setIndex(value => value + 1)
@@ -124,20 +137,21 @@ export function PracticeSession({
 }
 
 function PracticeTurn({
-  id,
-  workspaceId,
+  sourceRef,
   onSaved,
   onSkip,
   onBusy,
 }: {
-  id: number
-  workspaceId?: string
+  sourceRef: PracticeSourceRef
   onSaved: (due: number | null, rating: PracticeRating) => void
   onSkip: () => void
   onBusy: (busy: boolean) => void
 }) {
   const { t } = useTranslation()
+  const id = sourceRef.kind === 'notebook' ? sourceRef.entryId : -1
+  const isQc = sourceRef.kind === 'qcore'
   const [question, setQuestion] = useState<PracticeQuestion | null>(null)
+  const [qc, setQc] = useState<QcPracticeQuestion | null>(null)
   const [answer, setAnswer] = useState('')
   const [revealed, setRevealed] = useState(false)
   const [correct, setCorrect] = useState<boolean | null>(null)
@@ -155,27 +169,47 @@ function PracticeTurn({
   } | null>(null)
   useEffect(() => {
     let active = true
-    void getPracticeQuestion(id, workspaceId)
-      .then(result => {
-        if (active) setQuestion(result)
-      })
-      .catch(err => {
-        if (active) setError(String(err.message || err))
-      })
+    if (sourceRef.kind === 'qcore') {
+      void loadQcorePracticeQuestion(sourceRef.questionId, sourceRef.revisionId)
+        .then(result => {
+          if (active) setQc(result)
+        })
+        .catch(err => {
+          if (active) setError(String(err.message || err))
+        })
+    } else {
+      void getPracticeQuestion(sourceRef.entryId, sourceRef.workspaceId)
+        .then(result => {
+          if (active) setQuestion(result)
+        })
+        .catch(err => {
+          if (active) setError(String(err.message || err))
+        })
+    }
     return () => {
       active = false
     }
-  }, [id, reload, workspaceId])
+  }, [sourceRef, reload])
   async function reveal() {
-    if (pending.current || !question) return
+    if (pending.current || (isQc ? !qc : !question)) return
     pending.current = true
     setBusy(true)
     onBusy(true)
     setError('')
     try {
-      const verdict = await checkPracticeAnswer(id, answer, workspaceId)
-      setCorrect(verdict.correct)
-      setRevealed(true)
+      if (isQc) {
+        // review_only 自检路径：无参考答案可校验，不调用判分、不伪造 correct。
+        setCorrect(null)
+        setRevealed(true)
+      } else {
+        const verdict = await checkPracticeAnswer(
+          sourceRef.kind === 'notebook' ? sourceRef.entryId : id,
+          answer,
+          sourceRef.kind === 'notebook' ? sourceRef.workspaceId : undefined,
+        )
+        setCorrect(verdict.correct)
+        setRevealed(true)
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
     } finally {
@@ -185,7 +219,7 @@ function PracticeTurn({
     }
   }
   async function rate(rating: PracticeRating, selfReport = false) {
-    if (pending.current || !question || conflict) return
+    if (pending.current || (isQc ? !qc : !question) || conflict) return
     pending.current = true
     setBusy(true)
     onBusy(true)
@@ -193,17 +227,39 @@ function PracticeTurn({
     // Retrying a lost response must reuse its ID and exact payload.
     submission.current ??= {
       request_id: randomUuid(),
-      version: question.state.version,
+      version: isQc ? (qc?.state.version ?? 0) : (question?.state.version ?? 0),
       rating,
       answer,
       self_report: selfReport,
     }
     try {
-      const result = await savePracticeReview(id, submission.current, workspaceId)
-      onSaved(result.due_at, result.rating)
+      if (isQc && sourceRef.kind === 'qcore') {
+        // QCore 车道：身份=(question_id, revision_id)，correct 恒 null（已作答/未判分）。
+        const result = await reviewQcorePractice(
+          { questionId: sourceRef.questionId, revisionId: sourceRef.revisionId },
+          {
+            request_id: submission.current.request_id,
+            version: submission.current.version,
+            rating: submission.current.rating,
+            answer: submission.current.answer,
+          },
+        )
+        onSaved(result.due_at, result.rating)
+      } else {
+        const result = await savePracticeReview(
+          sourceRef.kind === 'notebook' ? sourceRef.entryId : id,
+          submission.current,
+          sourceRef.kind === 'notebook' ? sourceRef.workspaceId : undefined,
+        )
+        onSaved(result.due_at, result.rating)
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
-      if (err instanceof PracticeRequestError && err.status === 409) setConflict(true)
+      const status =
+        err instanceof PracticeRequestError
+          ? err.status
+          : (err as { status?: number }).status
+      if (status === 409) setConflict(true)
     } finally {
       pending.current = false
       setBusy(false)
@@ -221,6 +277,7 @@ function PracticeTurn({
     setReload(value => value + 1)
   }
   const entry = question?.entry
+  const qcReady = isQc && qc !== null
   const multi =
     entry?.question_type === 'multi_choice' || entry?.question_type === 'multiple_select'
   const choices = Object.entries(entry?.options || {})
@@ -236,7 +293,89 @@ function PracticeTurn({
           )}
         </div>
       )}
-      {!entry ? (
+      {isQc ? (
+        qcReady && qc ? (
+          <>
+            <QCorePracticeView
+              question={qc.question}
+              identity={qc.identity}
+              revealed={revealed}
+              answer={answer}
+              onAnswer={setAnswer}
+            />
+            {!revealed ? (
+              <div className="mt-5 flex flex-wrap items-center gap-3">
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => void reveal()}
+                  className="rounded-xl bg-primary px-4 py-2.5 text-sm text-primary-foreground disabled:opacity-50"
+                >
+                  {busy ? t('Checking…') : t('Check and reveal answer')}
+                </button>
+                <button
+                  type="button"
+                  disabled={busy || conflict}
+                  onClick={() => void rate('good', true)}
+                  className="rounded-xl border border-border px-4 py-2.5 text-sm hover:bg-muted"
+                >
+                  {t('I have mastered this')}
+                </button>
+                <button
+                  type="button"
+                  onClick={onSkip}
+                  disabled={busy}
+                  className="text-sm text-muted-foreground hover:underline"
+                >
+                  {t('Skip for now')}
+                </button>
+              </div>
+            ) : (
+              <div className="mt-6 space-y-5">
+                <div>
+                  <h3 className="text-sm font-medium">{t('How well did you remember?')}</h3>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {t(
+                      'Mastered questions leave this round and return when your next review is due.',
+                    )}
+                  </p>
+                  <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+                    {RATINGS.map(rating => (
+                      <button
+                        key={rating.value}
+                        aria-label={`${t(rating.label)} ${t(rating.description)}`}
+                        type="button"
+                        disabled={
+                          busy ||
+                          conflict ||
+                          (!!submission.current && submission.current.rating !== rating.value)
+                        }
+                        onClick={() => void rate(rating.value, true)}
+                        className="rounded-xl border border-border p-3 text-left transition hover:border-primary hover:bg-primary/5 disabled:cursor-not-allowed disabled:opacity-35"
+                      >
+                        <span className="block text-sm font-semibold">{t(rating.label)}</span>
+                        <span className="mt-1 block text-xs text-muted-foreground">
+                          {t(rating.description)}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                {busy && (
+                  <p role="status" className="flex items-center gap-2 text-sm">
+                    <Loader2 size={15} className="animate-spin" />
+                    {t('Saving review…')}
+                  </p>
+                )}
+              </div>
+            )}
+          </>
+        ) : (
+          <p role="status" className="py-8 text-sm text-muted-foreground">
+            {t('Loading…')}
+          </p>
+        )
+      ) : !entry ? (
         <p role="status" className="py-8 text-sm text-muted-foreground">
           {t('Loading…')}
         </p>

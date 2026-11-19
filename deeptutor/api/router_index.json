@@ -1,5 +1,5 @@
 {
-  "fingerprint": "b3ff4a2963d642a226ba3b8fd034f616c878ec27cdb071e720e82674dabd3b75",
+  "fingerprint": "6742150f776b509960f2164ce61c0be522b4ef98d3d809abd68edf21bf4be318",
   "routers": {
     "deeptutor.api.routers.auth:router": [
       {
@@ -3424,6 +3424,70 @@
       {
         "path": "/questions/{entry_id}/review",
         "name": "review",
+        "kind": "http",
+        "methods": [
+          "POST"
+        ]
+      },
+      {
+        "path": "/qcore/proxy/student/questions",
+        "name": "proxy_qcore_questions",
+        "kind": "http",
+        "methods": [
+          "GET"
+        ]
+      },
+      {
+        "path": "/qcore/proxy/student/questions/{question_id}",
+        "name": "proxy_qcore_question",
+        "kind": "http",
+        "methods": [
+          "GET"
+        ]
+      },
+      {
+        "path": "/qcore-acceptance/proxy/student/questions",
+        "name": "proxy_acceptance_questions",
+        "kind": "http",
+        "methods": [
+          "GET"
+        ]
+      },
+      {
+        "path": "/qcore-acceptance/proxy/student/questions/{question_id}",
+        "name": "proxy_acceptance_question",
+        "kind": "http",
+        "methods": [
+          "GET"
+        ]
+      },
+      {
+        "path": "/qcore-candidates/proxy/student/questions",
+        "name": "proxy_candidates_questions",
+        "kind": "http",
+        "methods": [
+          "GET"
+        ]
+      },
+      {
+        "path": "/qcore-candidates/proxy/student/questions/{question_id}",
+        "name": "proxy_candidates_question",
+        "kind": "http",
+        "methods": [
+          "GET"
+        ]
+      },
+      {
+        "path": "/qcore/state/{question_id}",
+        "name": "qcore_state",
+        "kind": "http",
+        "methods": [
+          "GET"
+        ]
+      },
+      {
+        "path": "/qcore/review",
+        "name": "qcore_review",
         "kind": "http",
         "methods": [
           "POST"

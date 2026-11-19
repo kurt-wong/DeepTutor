@@ -124,9 +124,14 @@ class QuizAttempt(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
     question_id: str
-    knowledge_point_id: str
+    # QCore 身份（C1 阶段2）：revision_id=作答时的内容版本；source_type 区分
+    # 题目来源（qcore / notebook 等）。旧记录缺省为空/"notebook"，语义不变。
+    revision_id: str = ""
+    source_type: str = "notebook"
+    knowledge_point_id: str = ""
     module_id: str = ""
-    is_correct: bool
+    # None = 未判分（review_only 等无合法判分依据时的显式状态），不得伪造对错。
+    is_correct: bool | None = None
     result: Literal["correct", "partial", "incorrect"] | None = None
     user_answer: Any = None
     error_type: ErrorType | None = None
@@ -142,7 +147,7 @@ class QuizAttempt(BaseModel):
 
     @model_validator(mode="after")
     def _legacy_result(self):
-        if self.result is None:
+        if self.result is None and self.is_correct is not None:
             self.result = "correct" if self.is_correct else "incorrect"
         return self
 
@@ -160,8 +165,12 @@ class ErrorRecord(BaseModel):
 
     id: str
     question_id: str
-    knowledge_point_id: str
-    module_id: str
+    # QCore 身份（C1 阶段2）：错题必须可追溯到作答时 Revision 与来源。
+    revision_id: str = ""
+    source_type: str = "notebook"
+    attempt_id: str = ""
+    knowledge_point_id: str = ""
+    module_id: str = ""
     error_type: ErrorType
     self_attribution: str = ""
     ai_confirmation: str = ""
@@ -182,11 +191,15 @@ class LearningEvidence(BaseModel):
 
     evidence_id: str = ""
     question_id: str = ""
-    knowledge_point_id: str
+    # QCore 身份（C1 阶段2）：证据必须保留作答时 Revision 与来源。
+    revision_id: str = ""
+    source_type: str = "notebook"
+    knowledge_point_id: str = ""
     timestamp: float = Field(default_factory=time.time)
     source: str = "mastery_path"
     assessment_type: Literal["quiz", "qualitative", "review"] = "quiz"
-    result: Literal["correct", "incorrect", "partial"] = "incorrect"
+    # "ungraded" = 已作答未判分（review_only）：不得计入正确率/掌握度。
+    result: Literal["correct", "incorrect", "partial", "ungraded"] = "incorrect"
     quality: float | None = None
     hints_used: int = 0
     attempt_count: int = 1

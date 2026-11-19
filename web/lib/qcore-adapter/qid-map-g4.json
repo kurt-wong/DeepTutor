@@ -1,0 +1,71 @@
+{
+  "generated_by": "runs/qcore_phase_b2_spike_01/scripts/gen_qcore_g4_maps.py",
+  "generated_at": "2026-11-18T05:23:20.000867+00:00",
+  "generated_from": "qcore_g4_final_01.qcore_question_instances + qcore_state_history (authoritative)",
+  "note": "qid -> subject/source_document_id mapping. NOT derived from legacy volume-map.json.",
+  "entries": {
+    "246bbb2e-85f7-4dfc-a7ec-3553337a49dd": {
+      "source_document_id": "2026湖南高考真题生物（教师版）(1)",
+      "subject": "生物",
+      "printed_number": "5",
+      "revision_id": "3943c442-7b98-4144-bd6a-185512206436",
+      "published": true
+    },
+    "4d447603-b82a-42ee-bb58-059b48183db7": {
+      "source_document_id": "2026北京高考真题化学（教师版）(1)",
+      "subject": "化学",
+      "printed_number": "10",
+      "revision_id": "7206a4be-1168-4191-a310-26979f7d5800",
+      "published": true
+    },
+    "54636bff-ce1d-4f70-82ac-7b4eaa022eb6": {
+      "source_document_id": "2026上海高考真题语文（1月）（教师版）(1)",
+      "subject": "语文",
+      "printed_number": "1",
+      "revision_id": "6dcea204-302f-4458-85cc-9c1eff2eb0e8",
+      "published": true
+    },
+    "54bda1f9-967b-49d5-8fcb-cd378cb544ca": {
+      "source_document_id": "2026北京高考真题化学（教师版）(1)",
+      "subject": "化学",
+      "printed_number": "1",
+      "revision_id": "fd09ec0b-e083-4b7b-a179-986c3032924b",
+      "published": true
+    },
+    "69bcbaf1-dc50-4c1a-b85f-ef9ac5cae32f": {
+      "source_document_id": "2026湖南高考真题生物（教师版）(1)",
+      "subject": "生物",
+      "printed_number": "14",
+      "revision_id": "072dced1-2ae6-4bdc-9bb1-bc6040841965",
+      "published": true
+    },
+    "6be1a169-08b9-4ef0-97bb-27e3cbad36a9": {
+      "source_document_id": "2026浙江高考真题英语（1月）（教师版）(1)",
+      "subject": "英语",
+      "printed_number": null,
+      "revision_id": "4ec61702-8f31-4d7c-9d8b-add6b1606a72",
+      "published": true
+    },
+    "8849a1e7-e3dd-485b-af56-d2753af5e1e6": {
+      "source_document_id": "2026江苏高考真题物理（教师版）(1)",
+      "subject": "物理",
+      "printed_number": "16",
+      "revision_id": "7522bf7d-9aaa-4868-a7df-61798ae48eae",
+      "published": true
+    },
+    "af79ff1b-0e4d-4dbb-8dbf-1ad91638451e": {
+      "source_document_id": "2026北京高考真题化学（教师版）(1)",
+      "subject": "化学",
+      "printed_number": "8",
+      "revision_id": "7a8a0bed-ae84-48c5-b9c4-e18b4ea5eaa5",
+      "published": true
+    },
+    "bb36a668-7827-4e29-af7a-03cedc6a13af": {
+      "source_document_id": "2026上海高考真题语文（1月）（教师版）(1)",
+      "subject": "语文",
+      "printed_number": "2",
+      "revision_id": "f4e60906-71ba-4389-8e83-3630f0ce9880",
+      "published": true
+    }
+  }
+}

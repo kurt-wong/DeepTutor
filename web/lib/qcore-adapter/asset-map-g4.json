@@ -1,0 +1,28 @@
+{
+  "generated_by": "runs/qcore_phase_b2_spike_01/scripts/gen_qcore_g4_maps.py",
+  "generated_at": "2026-11-18T05:23:20.000867+00:00",
+  "generated_from": "C1 asset_allowlist.json (DSH-reviewed authorization set)",
+  "note": "asset_id -> whitelist url_path for :8812 (<subject>/imgs/<file>). Only listed assets are servable.",
+  "entries": {
+    "img_in_image_box_107_1425_592_1489": {
+      "url_path": "化学/imgs/img_in_image_box_107_1425_592_1489.jpg",
+      "content_hash": "05ce17e3ca519f078cd374320ded5d97bb1e02756da7bec69bf6da5665da1e25",
+      "sample": "N8"
+    },
+    "img_in_image_box_111_1260_822_1390": {
+      "url_path": "化学/imgs/img_in_image_box_111_1260_822_1390.jpg",
+      "content_hash": "a107f832588996f74263b0b1b23310dd12fc88c24a6c26bee904265a4cc3bad9",
+      "sample": "N8"
+    },
+    "img_in_image_box_115_697_374_878": {
+      "url_path": "化学/imgs/img_in_image_box_115_697_374_878.jpg",
+      "content_hash": "b56c5d3c0f04b51ce332e18dcd377b7bf357cb9a9bbef2df7e18df359c4ee4ee",
+      "sample": "N4"
+    },
+    "img_in_image_box_106_326_478_543": {
+      "url_path": "物理/imgs/img_in_image_box_106_326_478_543.jpg",
+      "content_hash": "36cef83044445bdca641e3afde954b7a0f396249bc17aeb407a16102a4f59eb2",
+      "sample": "N3"
+    }
+  }
+}
