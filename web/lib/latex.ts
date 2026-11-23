@@ -404,16 +404,95 @@ export function processLatexContent(content: string): string {
   return normalizeMathMarkup(str);
 }
 
+/**
+ * Owner 2026-11-22（DELIVERY-04 · 公式渲染）：清理 OCR 常见的多余 `$` 定界符。
+ *
+ * 源文出现 `$ 2.5\times10^{-8}$ $`（尾部多一个 `$`）或空公式 `$ $` 时，
+ * remark-math 只把成对部分当公式，剩余 `$` 会原样显示给学生。按行配对：
+ * 空公式吞掉、行内落单的 `$` 去掉；含 `$$` 的块级公式不动。
+ */
+export function normalizeStrayMathDelimiters(content: string): string {
+  if (!content) return content;
+  return content
+    .split("\n")
+    .map((line) => {
+      if (line.includes("$$")) return line;
+      // 定界符内侧空白已由 normalizeSpacedMathDelimiters 在更早阶段处理。
+      let out = line;
+      if (!out.includes("$")) return out;
+      let balanced = "";
+      let inMath = false;
+      for (const ch of out) {
+        if (ch === "$") inMath = !inMath;
+        balanced += ch;
+      }
+      out = balanced;
+      if (inMath) {
+        const idx = out.lastIndexOf("$");
+        out = out.slice(0, idx) + out.slice(idx + 1);
+        out = out.replace(/[ \t]+$/, "");
+      }
+      return out
+        .replace(/\$\s+\$/g, "")
+        // OCR 偶尔在公式里留下孤立反斜杠（`$ \\ $`）：KaTeX 会抛错并以红色
+        // 源码显示，学生可见。纯空公式直接删掉，不改动有意义的内容。
+        .replace(/\$\s*\\+\s*\$/g, "")
+        // 公式闭合前残留反斜杠（`$ 2.5\times10^{-8}\ $`）会让整段公式解析失败、
+        // 后半段以源码显示；只删紧贴闭合 `$` 的孤立反斜杠。
+        .replace(/(\$[^$\n]*?)\\+\s*(\$)/g, "$1$2");
+    })
+    .join("\n");
+}
+
+/** 数学区间之外的裸化学下标（`SiHCl_{3}`）→ Unicode 下标（`SiHCl₃`）。
+ *  只处理"字母/数字/右括号 + _{数字}"形态，且不进入 `$…$` 内部。 */
+const SUB_DIGITS: Record<string, string> = {
+  "0": "₀", "1": "₁", "2": "₂", "3": "₃", "4": "₄",
+  "5": "₅", "6": "₆", "7": "₇", "8": "₈", "9": "₉",
+};
+
+export function normalizeBareChemicalSubscripts(content: string): string {
+  if (!content || !content.includes("_{")) return content;
+  return content
+    .split(/(\$[^$\n]*\$)/)
+    .map((part, idx) => {
+      if (idx % 2 === 1) return part; // 数学区间内保持原样
+      return part.replace(/([A-Za-z0-9)\]])_\{(\d{1,2})\}/g, (_m, base: string, digits: string) =>
+        base + digits.split("").map((d) => SUB_DIGITS[d] ?? d).join(""),
+      );
+    })
+    .join("");
+}
+
 export function processMarkdownContent(content: string): string {
   if (!content) return "";
 
   let result = String(content);
   result = normalizeAtxHeadings(result);
+  // 必须先收掉定界符内侧空白，再交给 normalizeMathMarkup：否则 `$ \sin … $`
+  // 不匹配数学区间正则，会被当成裸 LaTeX 二次处理（实测会丢 `$` 并加反斜杠）。
+  result = normalizeSpacedMathDelimiters(result);
+  result = normalizeBareChemicalSubscripts(result);
   result = normalizeEditorMdInlineMath(result);
   result = convertEditorMdFences(result);
   result = injectEditorMdTableOfContents(result);
   result = normalizeMathMarkup(result);
+  result = normalizeStrayMathDelimiters(result);
   result = result.replace(/\n{3,}/g, "\n\n");
 
   return result;
+}
+
+/** `$ … $`（定界符内侧任意一侧或两侧带空白）→ `$…$`：只改定界符形态，不改内容。 */
+export function normalizeSpacedMathDelimiters(content: string): string {
+  if (!content || !content.includes("$")) return content;
+  return content.replace(
+    /(^|[^$])\$(?!\$)([^$\n]+?)\$(?!\$)/g,
+    (match: string, pre: string, body: string) => {
+      const trimmed = body.trim();
+      if (!trimmed || trimmed === body) return pre ? match : match;
+      if (trimmed.includes("\\$")) return match;
+      return pre + "$" + trimmed + "$";
+    },
+  );
 }

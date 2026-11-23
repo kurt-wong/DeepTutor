@@ -206,6 +206,11 @@ function plausibleMathBody(body: string, tight: boolean): boolean {
 
   // Latin prose gives itself away with words. `x + y`, `f(x)` and `E = mc` are
   // all formulas; "5 and the value of " is not.
+  // 单个大写字母串（ABC/AB/DE）是几何/物理里最常见的行内数学。若按"英文词"
+  // 判定，`$ABC$` 会被误当文本并被转义成 `\$`，从而破坏同一行后续 `$` 的配对
+  // （物理 p16 的实测根因：首个 $ 被转义后整段公式错位）。tight 形态按数学处理。
+  if (tight && /^[A-Z]{2,8}$/.test(value)) return true;
+
   const words = value.match(/[A-Za-z]{3,}/g) ?? [];
   return words.every((word) => MATH_WORDS.has(word.toLowerCase()));
 }
