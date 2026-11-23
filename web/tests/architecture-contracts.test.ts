@@ -49,6 +49,10 @@ test("raw fetch is limited to the shared API client and media preview", () => {
   const allow = new Set([
     "shared/api/client.ts",
     "components/chat/preview/FilePreviewDrawer.tsx",
+    // AITutor: the QCore student API is a separate service (own origin/port),
+    // so its adapter intentionally uses a dedicated fetch wrapper instead of
+    // the DeepTutor API client.
+    "lib/qcore-adapter/client.ts",
   ]);
   const violations = allSources
     .filter((file) => /\bfetch\(/.test(fs.readFileSync(file, "utf8")))
