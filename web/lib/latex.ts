@@ -411,6 +411,21 @@ export function processLatexContent(content: string): string {
  * remark-math 只把成对部分当公式，剩余 `$` 会原样显示给学生。按行配对：
  * 空公式吞掉、行内落单的 `$` 去掉；含 `$$` 的块级公式不动。
  */
+/**
+ * v1.7.3 semantic merge helper: remove empty inline math (`$ $`, `$  $`) before
+ * upstream ``normalizeMathMarkup`` escapes stray dollars.  Kept narrow on
+ * purpose: single-$ LaTeX lines are still promoted to block math afterwards.
+ */
+function stripEmptyInlineMathDelimiters(content: string): string {
+  if (!content || !content.includes("$")) return content;
+  return content
+    .split("\n")
+    .map((line) =>
+      line.replace(/(^|\s)\$(?!\$)[ \t]*\$(?!\$)(?=\s|$)/g, "$1"),
+    )
+    .join("\n");
+}
+
 export function normalizeStrayMathDelimiters(content: string): string {
   if (!content) return content;
   return content
@@ -472,6 +487,12 @@ export function processMarkdownContent(content: string): string {
   // 必须先收掉定界符内侧空白，再交给 normalizeMathMarkup：否则 `$ \sin … $`
   // 不匹配数学区间正则，会被当成裸 LaTeX 二次处理（实测会丢 `$` 并加反斜杠）。
   result = normalizeSpacedMathDelimiters(result);
+  // v1.7.3 semantic merge: upstream normalizeMathMarkup escapes stray dollars
+  // before masking.  Remove *empty* inline math first (`$ $` would otherwise
+  // become `\$` and survive the final cleanup as a lone backslash).  Do not run
+  // the full stray-dollar cleanup here: upstream promotes single-$ LaTeX lines
+  // to block math afterwards, and stripping delimiters early breaks that.
+  result = stripEmptyInlineMathDelimiters(result);
   result = normalizeBareChemicalSubscripts(result);
   result = normalizeEditorMdInlineMath(result);
   result = convertEditorMdFences(result);
