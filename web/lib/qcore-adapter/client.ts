@@ -1,7 +1,7 @@
 // QCORE-DEEPTUTOR-STUDENT-INTEGRATION-01 — Read Adapter client.
 // 只读消费 Question Core Student API（HTTP）。字段映射 + 结构保持，无 LLM、无 OCR、
 // 无切题、无题型推断、无答案重抽、无解析重生成。旧题目摄入链不在此通路中。
-import assetMapJson from "./asset-map-g4.json";
+import assetMapJson from "./asset-map-175.json";
 import qidMapJson from "./qid-map-g4.json";
 import type {
   QCoreBlock,

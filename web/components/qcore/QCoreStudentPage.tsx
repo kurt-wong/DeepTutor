@@ -144,6 +144,12 @@ export function QCoreStudentPage() {
     return new URLSearchParams(window.location.search).get("api") || undefined;
   });
 
+  // PBA 验收：允许 ?q=<questionId> 直接打开隔离库中的真实 Question。
+  const [initialQuestionId] = useState<string | null>(() => {
+    if (typeof window === "undefined") return null;
+    return new URLSearchParams(window.location.search).get("q");
+  });
+
   const load = useCallback(async () => {
     try {
       setList(await fetchQuestionList(apiBase));
@@ -174,6 +180,12 @@ export function QCoreStudentPage() {
       setLoadingId(null);
     }
   }, [apiBase]);
+
+  useEffect(() => {
+    if (initialQuestionId) {
+      void open(initialQuestionId);
+    }
+  }, [initialQuestionId, open]);
 
   return (
     <div className="h-full w-full overflow-y-auto">

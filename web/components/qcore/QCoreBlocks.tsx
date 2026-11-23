@@ -6,6 +6,20 @@
 import MarkdownRenderer from "@/components/common/MarkdownRenderer";
 import type { QCoreBlock, QCoreBody, QCoreMaterial } from "@/lib/qcore-adapter/types";
 
+/** 表格单元格里的 Markdown 字面量保护。
+ *
+ *  生物 p23 的等位基因表格用 `+` 表示"有"，但 Markdown 会把单独的 `+`/`-`/`*`
+ *  解析成列表符号，学生端看到的是 `•`。这里只对"整格就是一个列表标记"的
+ *  单元格做转义，其余内容（含公式、图片、普通文本）原样交给渲染器。
+ */
+function escapeTableCellMarkdown(cell: string): string {
+  const trimmed = (cell ?? "").trim();
+  if (trimmed === "+" || trimmed === "-" || trimmed === "*") {
+    return "\\" + trimmed;
+  }
+  return cell;
+}
+
 export function BlockView({ block }: { block: QCoreBlock }) {
   if (block.kind === "text") {
     // 展示层格式化：Markdown + KaTeX 渲染（$..$ 内联公式），内容不做任何改写。
@@ -48,7 +62,7 @@ export function BlockView({ block }: { block: QCoreBlock }) {
                       ![](图) 标记（图片单元格保留）均走 Markdown/KaTeX；
                       实体解码已在 adapter 层完成。 */}
                   <MarkdownRenderer
-                    content={cell}
+                    content={escapeTableCellMarkdown(cell)}
                     enableMath
                     enableImages
                     enableCode={false}

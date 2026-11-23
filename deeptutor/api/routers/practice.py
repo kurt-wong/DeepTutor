@@ -199,7 +199,7 @@ class QcReviewRequest(BaseModel):
 import urllib.parse as _urlparse
 import urllib.request as _urlrequest
 
-QCORE_STUDENT_API_BASE = "http://127.0.0.1:8811"
+QCORE_STUDENT_API_BASE = os.environ.get("QCORE_STUDENT_API_BASE", "http://127.0.0.1:8811")
 
 
 def _qcore_proxy_get(path: str):
