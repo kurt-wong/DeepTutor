@@ -29,7 +29,23 @@ export function QCorePracticeView({
 }) {
   const bodies = question.content.bodies;
   const choiceBodies = useMemo(() => bodies.filter(isChoiceBody), [bodies]);
-  const freeBodies = useMemo(() => bodies.filter((b) => !isChoiceBody(b)), [bodies]);
+  // 七选五（QCORE-QIQI-PRACTICE-CHOICE-01）：选项池在父题上，作答单位是短文里的
+  // 5 个空位（子问）。此前落到自由文本框，学生看得到题却没法按 A–G 作答。
+  const agPool = useMemo(
+    () =>
+      question.questionType === "seven_to_five"
+        ? bodies.find((b) => b.parentQuestionRef === null && b.options.length > 0) ?? null
+        : null,
+    [bodies, question.questionType],
+  );
+  const blankBodies = useMemo(
+    () => (agPool ? bodies.filter((b) => b.parentQuestionRef !== null) : []),
+    [bodies, agPool],
+  );
+  const freeBodies = useMemo(
+    () => bodies.filter((b) => !isChoiceBody(b) && !(agPool && (b === agPool || blankBodies.includes(b)))),
+    [bodies, agPool, blankBodies],
+  );
   // 选择题：按 localId 记录所选标签；与自由作答合并为单一 answer 串。
   const [picks, setPicks] = useState<Record<string, string[]>>({});
 
@@ -65,7 +81,41 @@ export function QCorePracticeView({
 
       <div className="mt-4 border-t pt-4">
         <div className="text-xs font-medium text-muted-foreground mb-2">作答</div>
-        {choiceBodies.map((body) => (
+        {agPool && (
+          <div className="mb-3 space-y-2">
+            <div className="text-xs text-muted-foreground">
+              七选五：为每个空位选一个字母（选项池 {agPool.options.map((o) => o.label).join("/")}）
+            </div>
+            {blankBodies.map((blank) => (
+              <div key={`blank-${blank.localId}`} className="flex flex-wrap items-baseline gap-2">
+                <span className="w-14 shrink-0 text-xs text-muted-foreground">
+                  {blank.printedNumber != null ? `空位 ${blank.printedNumber}` : blank.localId}
+                </span>
+                <div className="flex flex-wrap gap-2">
+                  {agPool.options.map((o) => {
+                    const active = (picks[blank.localId] ?? []).includes(o.label);
+                    return (
+                      <button
+                        key={`${blank.localId}-${o.label}`}
+                        type="button"
+                        disabled={revealed}
+                        onClick={() => togglePick(blank.localId, o.label, false)}
+                        className={`rounded border px-2.5 py-0.5 text-sm ${
+                          active
+                            ? "border-foreground font-medium"
+                            : "border-border hover:bg-muted/60"
+                        }`}
+                      >
+                        {o.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+        {!agPool && choiceBodies.map((body) => (
           <div key={`pick-${body.localId}`} className="mb-3">
             <div className="text-xs text-muted-foreground mb-1">
               {body.printedNumber != null ? `第 ${body.printedNumber} 题` : body.localId}
@@ -97,7 +147,7 @@ export function QCorePracticeView({
         ))}
         {freeBodies.length > 0 && (
           <textarea
-            value={choiceBodies.length > 0 && !answer.includes(":") ? "" : answer}
+            value={(choiceBodies.length > 0 || agPool) && !answer.includes(":") ? "" : answer}
             disabled={revealed}
             onChange={(e) => onAnswer(e.target.value)}
             rows={4}
@@ -105,7 +155,7 @@ export function QCorePracticeView({
             className="w-full rounded border p-2 text-sm"
           />
         )}
-        {choiceBodies.length > 0 && freeBodies.length === 0 && (
+        {(choiceBodies.length > 0 || agPool) && freeBodies.length === 0 && (
           <div className="text-xs text-muted-foreground">已选：{answer || "（未选择）"}</div>
         )}
       </div>
