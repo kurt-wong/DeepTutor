@@ -3,91 +3,25 @@
 // QCORE-DEEPTUTOR-STUDENT-INTEGRATION-01 — Student 页面（只读展示）。
 // 展示 Question Core Student API 已允许学生消费的内容；结构保真（body/material/小问/图片/表格）。
 // B1 验收范围不含答案/解析内容可见性（当前 review_only，按策略隐藏）。
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
-import { BodyView, InlineBlocks } from "@/components/qcore/QCoreBlocks";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { QuestionContent } from "@/components/qcore/QCoreBlocks";
 import { fetchQuestionDetail, fetchQuestionList } from "@/lib/qcore-adapter/client";
 import type {
-  QCoreBlock,
-  QCoreBody,
   QCoreListEntry,
   QCoreMappingReport,
-  QCoreMaterial,
   QCoreStudentQuestion,
 } from "@/lib/qcore-adapter/types";
 
-function segLineStart(blocks: QCoreBlock[]): number | null {
-  const vals = blocks
-    .map((b) => ("lineStart" in b ? b.lineStart ?? null : null))
-    .filter((v): v is number => typeof v === "number");
-  return vals.length ? Math.min(...vals) : null;
-}
-
 function QuestionDetail({ question }: { question: QCoreStudentQuestion }) {
-  const renderBody = (b: QCoreBody) => {
-    // 空父卡（stem 全空且无选项）不渲染；含图片/表格的父卡必须保留
-    // （AF2-C/Q16：只带图的父卡曾被此分支丢弃 → 图片"缺失"）。
-    const hasVisual = b.stemBlocks.some((x) => (x.kind === "text" ? x.text.trim() !== "" : true));
-    if (!hasVisual && b.options.length === 0) return null;
-    // 统一版式（Owner 2026-11-24）：所有 body 走同一渲染口，不再有
-    // 「灰色卡片 / 裸行」两套样式；完形标号行与阅读小问都由 BodyView 统一处理。
-    return <BodyView key={b.localId} body={b} />;
-  };
-
-  const renderMaterial = (m: QCoreMaterial) => (
-    <div key={m.materialId} className="my-2">
-      <InlineBlocks blocks={m.blocks} />
-    </div>
-  );
-
-  // AF2-C：带顺序元数据（验收通道）→ 按源行序合并 materials/bodies，
-  // 修复 materials-first 错位（Q19 (1)-(3) 应在步骤材料前；语文材料在题目要求后）。
-  // 无元数据（正式通道）→ 保持 materials-first，行为不变。
-  const mats = question.content.materials;
-  const bodies = question.content.bodies;
-  const hasOrder =
-    mats.some((m) => m.lineStart != null) || bodies.some((b) => b.lineStart != null);
-
-  let orderedContent: ReactNode;
-  if (hasOrder) {
-    const items = [
-      ...mats.map((m) => ({
-        key: `m-${m.materialId}`,
-        sort: m.lineStart ?? segLineStart(m.blocks),
-        tie: 0,
-        node: renderMaterial(m),
-      })),
-      ...bodies.map((b) => ({
-        key: `b-${b.localId}`,
-        sort: b.lineStart ?? segLineStart(b.stemBlocks),
-        tie: 1,
-        node: renderBody(b),
-      })),
-    ];
-    items.sort((x, y) => {
-      const lx = x.sort ?? Number.MAX_SAFE_INTEGER;
-      const ly = y.sort ?? Number.MAX_SAFE_INTEGER;
-      return lx !== ly ? lx - ly : x.tie - y.tie;
-    });
-    orderedContent = items.map((it) => (
-      <div key={it.key}>{it.node}</div>
-    ));
-  } else {
-    orderedContent = (
-      <>
-        {mats.length > 0 && (
-          <div className="mt-3">
-            <div className="text-sm font-medium mb-1">共享材料（{mats.length}）</div>
-            {mats.map(renderMaterial)}
-          </div>
-        )}
-        <div className="mt-2">{bodies.map(renderBody)}</div>
-      </>
-    );
-  }
-
+  // 统一版式（Owner 2026-11-24）：材料 / 小问题干 / 选项一律走
+  // QuestionContent，按源行号统一排版（七选五的 A–G 因此落在短文之后）；
+  // 不再有「灰色卡片 / 裸行」两套样式，也不再有 materials-first / bodies 两段。
   return (
     <div className="mt-4">
-      {orderedContent}
+      <QuestionContent
+        materials={question.content.materials}
+        bodies={question.content.bodies}
+      />
       <div className="mt-3 text-xs border-t pt-2 text-gray-600">
         答案：{question.answerVisible ? "（按策略可见）" : question.answersNote ?? "按可见性策略隐藏"} · 解析：
         {question.explanationVisible ? "（按策略可见）" : question.explanationNote ?? "按可见性策略隐藏"}

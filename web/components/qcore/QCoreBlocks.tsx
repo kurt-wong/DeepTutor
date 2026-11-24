@@ -4,6 +4,7 @@
 // 职责：QC content 的 text/image/table 块与 body（含小问缩进/选项）原样呈现。
 // 不压平、不改写、不推断；图片 URL 由 adapter 的 C1 白名单映射决定，未解析即提示。
 import MarkdownRenderer from "@/components/common/MarkdownRenderer";
+import type { ReactNode } from "react";
 import type { QCoreBlock, QCoreBody, QCoreMaterial } from "@/lib/qcore-adapter/types";
 
 /** 表格单元格里的 Markdown 字面量保护。
@@ -185,11 +186,15 @@ export function InlineBlocks({ blocks }: { blocks: QCoreBlock[] }) {
   );
 }
 
+export type BodyPart = "all" | "stem" | "options";
+
 export function BodyView({
   body,
+  part = "all",
   showPrintedNumber = false,
 }: {
   body: QCoreBody;
+  part?: BodyPart;
   showPrintedNumber?: boolean;
 }) {
   const isSub = Boolean(body.parentQuestionRef);
@@ -247,9 +252,25 @@ export function BodyView({
     body.options.length > 0 &&
     (stemText === "" || (labelText !== "" && stemText.replace(/[（）()]/g, "") === labelText));
 
+  // 选项版式（Owner 2026-11-24「全科目统一」+ 源版式忠实）：
+  // - 源文一行一个选项（`A. …` 各占一行：阅读理解/七选五/化学/数学等）→ 逐行排版；
+  // - 源文一行四选（完形 `21. A.name B.grade …`）→ 四种并排一行。
+  // 判定只用 Student API 已给出的源行号，不做长度/题型的猜测；缺行号时按逐行排版
+  // （宁可多占行，也不把长选项挤成难读的折行网格）。
+  const optionFirstLines = optionViews.map((o) => {
+    const first = o.blocks[0];
+    return first ? blockLine(first) : null;
+  });
+  const optionsShareOneLine =
+    optionFirstLines.length > 0 &&
+    optionFirstLines.every((v) => v !== null) &&
+    new Set(optionFirstLines).size === 1;
+
   const renderOptions = (inlineLabel: string | null) => {
     if (optionViews.length === 0 || optionsCoveredByTable) return null;
-    const inline = optionViews.every((o) => o.blocks.length === 1 && o.blocks[0].kind === "text");
+    const inline =
+      optionsShareOneLine &&
+      optionViews.every((o) => o.blocks.length === 1 && o.blocks[0].kind === "text");
     if (inline) {
       return (
         <div className="mt-1 flex flex-wrap items-baseline gap-x-8 gap-y-1 text-sm">
@@ -278,9 +299,21 @@ export function BodyView({
     );
   };
 
+  // 小问题干只有印刷标号（完形 `（1）`）时，标号与选项并成一行；真实题干先渲染
+  // 题干，再渲染同一套选项行——同一题内选项版式一致。
+  const inlineLabel = stemIsLabelOnly ? String(body.printedNumber ?? "") : null;
+  const wantStem = part !== "options";
+  const wantOptions = part !== "stem";
+  const stemNode =
+    wantStem && !stemIsLabelOnly ? (
+      <div className="space-y-1">
+        <InlineBlocks blocks={body.stemBlocks} />
+      </div>
+    ) : null;
+
   return (
-    <div className="my-3">
-      {showPrintedNumber && !stemIsLabelOnly && (
+    <div className={part === "all" ? "my-3" : "my-1"}>
+      {showPrintedNumber && !stemIsLabelOnly && part !== "options" && (
         <div className="mb-1 flex items-baseline gap-2 text-xs text-muted-foreground">
           {body.printedNumber != null && (
             <span className="font-medium text-foreground">第 {body.printedNumber} 题</span>
@@ -292,17 +325,119 @@ export function BodyView({
           )}
         </div>
       )}
-      {stemIsLabelOnly ? (
-        renderOptions(String(body.printedNumber ?? ""))
-      ) : (
-        <>
-          <div className="space-y-1">
-            <InlineBlocks blocks={body.stemBlocks} />
-          </div>
-          {renderOptions(null)}
-        </>
-      )}
+      {stemNode}
+      {wantOptions && renderOptions(inlineLabel)}
     </div>
+  );
+}
+
+/** 块级源行号（只有 text/image/table 带；`other` 通道无行号）。 */
+function blockLine(b: QCoreBlock): number | null {
+  if ("lineStart" in b && typeof b.lineStart === "number") return b.lineStart;
+  return null;
+}
+
+/** 题面段落排序键：优先用块级源行号（比 instance/body 行号更精确）。 */
+function minBlockLine(blocks: QCoreBlock[]): number | null {
+  const vals = blocks
+    .map((b) => blockLine(b))
+    .filter((v): v is number => typeof v === "number");
+  return vals.length ? Math.min(...vals) : null;
+}
+
+function stemSortLine(body: QCoreBody): number | null {
+  const withText = body.stemBlocks.filter(
+    (b) => (b.kind === "text" ? b.text.trim() !== "" : true),
+  );
+  return minBlockLine(withText) ?? body.lineStart ?? null;
+}
+
+function optionsSortLine(body: QCoreBody): number | null {
+  const lines: number[] = [];
+  for (const o of body.options) {
+    for (const b of o.blocks) {
+      const ln = blockLine(b);
+      if (ln != null) lines.push(ln);
+    }
+  }
+  return lines.length ? Math.min(...lines) : null;
+}
+
+/**
+ * 题面整体（材料 + 小问 + 选项）按源行号统一排版。
+ *
+ * Owner 2026-11-24「全科目统一」：材料与小问/选项不再分两段堆叠。同一题的
+ * 材料、小问题干、选项按源行号交错渲染——七选五的 A–G 因此落在短文之后
+ * （源文顺序：指令 → 短文 → 选项），完形/语法填空的选项仍紧跟各自小问。
+ * 无任何行号元数据时退回「材料优先、再渲染 body」的旧顺序，行为不变。
+ */
+export function QuestionContent({
+  materials,
+  bodies,
+  showPrintedNumber = false,
+}: {
+  materials: QCoreMaterial[];
+  bodies: QCoreBody[];
+  showPrintedNumber?: boolean;
+}) {
+  const hasOrder =
+    materials.some((m) => m.lineStart != null || minBlockLine(m.blocks) != null) ||
+    bodies.some((b) => stemSortLine(b) != null || optionsSortLine(b) != null);
+
+  if (!hasOrder) {
+    return (
+      <>
+        {materials.map((m) => (
+          <MaterialView key={m.materialId} material={m} />
+        ))}
+        {bodies.map((b) => (
+          <BodyView key={b.localId} body={b} showPrintedNumber={showPrintedNumber} />
+        ))}
+      </>
+    );
+  }
+
+  type Seg = { key: string; sort: number; rank: number; node: ReactNode };
+  const segs: Seg[] = [];
+  const MAX = Number.MAX_SAFE_INTEGER;
+  for (const m of materials) {
+    segs.push({
+      key: `m-${m.materialId}`,
+      sort: m.lineStart ?? minBlockLine(m.blocks) ?? MAX,
+      rank: 1,
+      node: <MaterialView material={m} />,
+    });
+  }
+  for (const b of bodies) {
+    const bodyLine = stemSortLine(b);
+    const optLine = optionsSortLine(b);
+    const hasStem =
+      b.stemBlocks.some((x) => (x.kind === "text" ? x.text.trim() !== "" : true)) ||
+      b.options.length === 0;
+    if (hasStem || optLine == null) {
+      segs.push({
+        key: `b-${b.localId}`,
+        sort: bodyLine ?? MAX,
+        rank: 0,
+        node: <BodyView body={b} part="stem" showPrintedNumber={showPrintedNumber} />,
+      });
+    }
+    if (b.options.length > 0) {
+      segs.push({
+        key: `o-${b.localId}`,
+        sort: optLine ?? bodyLine ?? MAX,
+        rank: 2,
+        node: <BodyView body={b} part="options" />,
+      });
+    }
+  }
+  segs.sort((x, y) => (x.sort !== y.sort ? x.sort - y.sort : x.rank - y.rank));
+  return (
+    <>
+      {segs.map((s) => (
+        <div key={s.key}>{s.node}</div>
+      ))}
+    </>
   );
 }
 

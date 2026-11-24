@@ -4,7 +4,7 @@
 // 硬边界：review_only 下揭示=学生对照原题自检；answers/explanation 内容
 // 一律不渲染（仅显示 API 的可见性 note），submitted 不作答案授权。
 import { useMemo, useState } from "react";
-import { BodyView, MaterialView } from "@/components/qcore/QCoreBlocks";
+import { QuestionContent } from "@/components/qcore/QCoreBlocks";
 import type { QCoreStudentQuestion } from "@/lib/qcore-adapter/types";
 import type { QidMapEntry } from "@/lib/qcore-adapter/client";
 
@@ -61,13 +61,7 @@ export function QCorePracticeView({
         <span>revision {question.revisionId.slice(0, 8)}</span>
       </div>
 
-      {question.content.materials.map((m) => (
-        <MaterialView key={m.materialId} material={m} />
-      ))}
-
-      {bodies.map((body, i) => (
-        <BodyView key={body.localId || i} body={body} />
-      ))}
+      <QuestionContent materials={question.content.materials} bodies={bodies} />
 
       <div className="mt-4 border-t pt-4">
         <div className="text-xs font-medium text-muted-foreground mb-2">作答</div>
