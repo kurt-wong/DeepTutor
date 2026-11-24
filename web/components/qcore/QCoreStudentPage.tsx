@@ -98,6 +98,12 @@ export function QCoreStudentPage() {
           ? "数据源：隔离验收候选读取通道（含未发布/未完成候选，供 Owner 目视验收）；答案/解析按可见性保护，经逐题预览核对。"
           : "数据源：Question Core Student API（已审核发布内容）；展示层只做 contract 映射，不做二次加工。"}
       </p>
+      <a
+        href="/learning/qcore/teach"
+        className="mb-3 inline-flex items-center rounded border px-3 py-1.5 text-xs hover:bg-muted"
+      >
+        拍照讲题（OCR → QCore 匹配 → Interactive Lesson）
+      </a>
       {error && <div className="text-sm text-red-600 border border-red-300 rounded p-2 mb-2">{error}</div>}
       <div className="text-sm text-gray-700 mb-2">可消费题目：{list === null ? "加载中…" : list.length}</div>
       {detail && (
