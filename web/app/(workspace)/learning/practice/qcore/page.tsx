@@ -84,7 +84,7 @@ export default function QCorePracticePage() {
 
   return (
     <section className="mx-auto max-w-3xl">
-      <div className="mb-4 rounded-lg border border-primary/30 bg-primary/5 px-4 py-2 text-xs text-primary">
+      <div className="mb-4 border-l-2 border-border pl-3 text-xs text-muted-foreground">
         学生链路 · Question Core 唯一题源（:8811 Student API，图片 :8812 白名单）。
         不读旧题库；未发布题不可达。
       </div>

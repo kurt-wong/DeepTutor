@@ -230,9 +230,57 @@ export function BodyView({
         return true;
       }),
     );
+
+  // 统一版式（Owner 2026-11-24：全页同背景、无彩色/灰底块）：
+  // - 不再给 body 加边框、底色或缩进；只保留垂直间距。
+  // - 小问题干只有印刷标号（完形 `（2）`）时，标号与选项并成一行；
+  //   真实题干先渲染题干，再渲染同一套选项行——同一题内选项版式一致。
+  const stemText = norm(
+    body.stemBlocks
+      .map((x) => (x.kind === "text" ? x.text : ""))
+      .join(""),
+  );
+  const labelText = norm(
+    String(body.printedNumber ?? "").replace(/[（）()]/g, "").replace(/[.．、]/g, ""),
+  );
+  const stemIsLabelOnly =
+    body.options.length > 0 &&
+    (stemText === "" || (labelText !== "" && stemText.replace(/[（）()]/g, "") === labelText));
+
+  const renderOptions = (inlineLabel: string | null) => {
+    if (optionViews.length === 0 || optionsCoveredByTable) return null;
+    const inline = optionViews.every((o) => o.blocks.length === 1 && o.blocks[0].kind === "text");
+    if (inline) {
+      return (
+        <div className="mt-1 flex flex-wrap items-baseline gap-x-8 gap-y-1 text-sm">
+          {inlineLabel && <span className="font-medium">{inlineLabel}</span>}
+          {optionViews.map((o) => (
+            <div key={o.label} className="flex items-baseline gap-1">
+              <span className="font-medium">{o.label}.</span>
+              <BlockView block={o.blocks[0]} />
+            </div>
+          ))}
+        </div>
+      );
+    }
+    return (
+      <div className="mt-1 space-y-1">
+        {inlineLabel && <div className="text-sm font-medium">{inlineLabel}</div>}
+        {optionViews.map((o) => (
+          <div key={o.label} className="flex items-start gap-2">
+            <span className="font-medium text-sm">{o.label}.</span>
+            <div className="flex-1 space-y-1">
+              <InlineBlocks blocks={o.blocks} />
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  };
+
   return (
-    <div className={`border rounded p-3 my-2 ${isSub ? "ml-6 bg-slate-50" : "bg-white"}`}>
-      {showPrintedNumber && (
+    <div className="my-3">
+      {showPrintedNumber && !stemIsLabelOnly && (
         <div className="mb-1 flex items-baseline gap-2 text-xs text-muted-foreground">
           {body.printedNumber != null && (
             <span className="font-medium text-foreground">第 {body.printedNumber} 题</span>
@@ -244,46 +292,23 @@ export function BodyView({
           )}
         </div>
       )}
-      <div className="space-y-1">
-        <InlineBlocks blocks={body.stemBlocks} />
-      </div>
-      {optionViews.length > 0 && !optionsCoveredByTable && (() => {
-        // PDF 原卷式紧凑选项行：所有选项均为单文本块时一行排开；
-        // 含多块/图片等复杂选项时退回逐项堆叠，保证结构不丢。
-        const inline = optionViews.every((o) => o.blocks.length === 1 && o.blocks[0].kind === "text");
-        if (inline) {
-          return (
-            <div className="mt-2 flex flex-wrap gap-x-8 gap-y-1">
-              {optionViews.map((o) => (
-                <div key={o.label} className="flex items-baseline gap-1 text-sm">
-                  <span className="font-medium">{o.label}.</span>
-                  <BlockView block={o.blocks[0]} />
-                </div>
-              ))}
-            </div>
-          );
-        }
-        return (
-          <div className="mt-2 space-y-1">
-            {optionViews.map((o) => (
-              <div key={o.label} className="flex gap-2 items-start">
-                <span className="font-medium text-sm">{o.label}.</span>
-                <div className="flex-1 space-y-1">
-                  <InlineBlocks blocks={o.blocks} />
-                </div>
-              </div>
-            ))}
+      {stemIsLabelOnly ? (
+        renderOptions(String(body.printedNumber ?? ""))
+      ) : (
+        <>
+          <div className="space-y-1">
+            <InlineBlocks blocks={body.stemBlocks} />
           </div>
-        );
-      })()}
+          {renderOptions(null)}
+        </>
+      )}
     </div>
   );
 }
 
 export function MaterialView({ material }: { material: QCoreMaterial }) {
   return (
-    <div className="rounded border border-amber-200 bg-amber-50 p-3 my-2">
-      <div className="text-xs text-amber-800 mb-1">材料 {material.materialId}</div>
+    <div className="my-2">
       <div className="space-y-1">
         <InlineBlocks blocks={material.blocks} />
       </div>

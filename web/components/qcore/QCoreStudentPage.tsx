@@ -4,7 +4,7 @@
 // 展示 Question Core Student API 已允许学生消费的内容；结构保真（body/material/小问/图片/表格）。
 // B1 验收范围不含答案/解析内容可见性（当前 review_only，按策略隐藏）。
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
-import { BlockView, BodyView, InlineBlocks } from "@/components/qcore/QCoreBlocks";
+import { BodyView, InlineBlocks } from "@/components/qcore/QCoreBlocks";
 import { fetchQuestionDetail, fetchQuestionList } from "@/lib/qcore-adapter/client";
 import type {
   QCoreBlock,
@@ -15,25 +15,6 @@ import type {
   QCoreStudentQuestion,
 } from "@/lib/qcore-adapter/types";
 
-function normText(s: string): string {
-  return s.replace(/\s+/g, " ").trim();
-}
-
-/** PDF 原卷式紧凑行：题号 + 选项一行排开（子问句与通篇材料重复时不重复显示句子）。 */
-function CompactOptionRow({ body }: { body: QCoreBody }) {
-  return (
-    <div className="flex flex-wrap items-baseline gap-x-6 gap-y-1 my-1 text-sm">
-      <span className="font-medium">{body.printedNumber}.</span>
-      {body.options.map((o) => (
-        <div key={o.label} className="flex items-baseline gap-1">
-          <span className="font-medium">{o.label}.</span>
-          <BlockView block={o.blocks[0]} />
-        </div>
-      ))}
-    </div>
-  );
-}
-
 function segLineStart(blocks: QCoreBlock[]): number | null {
   const vals = blocks
     .map((b) => ("lineStart" in b ? b.lineStart ?? null : null))
@@ -42,36 +23,18 @@ function segLineStart(blocks: QCoreBlock[]): number | null {
 }
 
 function QuestionDetail({ question }: { question: QCoreStudentQuestion }) {
-  const materialNorm = normText(
-    question.content.materials
-      .map((m) => m.blocks.map((b) => (b.kind === "text" ? b.text : "")).join(" "))
-      .join(" "),
-  );
-
   const renderBody = (b: QCoreBody) => {
-    const stemText = normText(
-      b.stemBlocks.map((x) => (x.kind === "text" ? x.text : "")).join(" "),
-    );
     // 空父卡（stem 全空且无选项）不渲染；含图片/表格的父卡必须保留
     // （AF2-C/Q16：只带图的父卡曾被此分支丢弃 → 图片"缺失"）。
     const hasVisual = b.stemBlocks.some((x) => (x.kind === "text" ? x.text.trim() !== "" : true));
     if (!hasVisual && b.options.length === 0) return null;
-    const allSingleText = b.options.every((o) => o.blocks.length === 1 && o.blocks[0].kind === "text");
-    // 子问句与材料重复（完形类）→ 题号+选项行；否则完整卡片
-    const passageEmbedded =
-      Boolean(b.parentQuestionRef) &&
-      b.options.length > 0 &&
-      allSingleText &&
-      stemText !== "" &&
-      materialNorm.includes(stemText);
-    if (passageEmbedded) return <CompactOptionRow key={b.localId} body={b} />;
+    // 统一版式（Owner 2026-11-24）：所有 body 走同一渲染口，不再有
+    // 「灰色卡片 / 裸行」两套样式；完形标号行与阅读小问都由 BodyView 统一处理。
     return <BodyView key={b.localId} body={b} />;
   };
 
   const renderMaterial = (m: QCoreMaterial) => (
-    <div key={m.materialId} className="border rounded p-2 my-1 bg-amber-50/40">
-      {/* AF7：材料块走 InlineBlocks（与 BodyView 同一渲染口），否则 AF6/AF7
-          行内规则在学生页材料上不生效（此前材料是唯一漏接的渲染口）。 */}
+    <div key={m.materialId} className="my-2">
       <InlineBlocks blocks={m.blocks} />
     </div>
   );
@@ -191,7 +154,7 @@ export function QCoreStudentPage() {
     <div className="h-full w-full overflow-y-auto">
       <div className="max-w-3xl mx-auto p-4">
       {apiBase && (
-        <div className="mb-2 rounded border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+        <div className="mb-2 border-l-2 border-border pl-2 text-xs text-muted-foreground">
           验收候选环境（隔离数据源）：{apiBase} — 非正式题库，验收用途。
         </div>
       )}
@@ -218,12 +181,12 @@ export function QCoreStudentPage() {
           <QuestionDetail question={detail.question} />
         </div>
       )}
-      <div className="space-y-1">
+      <div className="space-y-0">
         {(list ?? []).map((q) => (
           <button
             key={q.questionId}
             onClick={() => void open(q.questionId)}
-            className="w-full text-left border rounded px-3 py-2 hover:bg-slate-50"
+            className="w-full text-left border-b px-1 py-2 hover:bg-muted/40"
           >
             <span className="font-medium">{q.printedNumber ?? q.questionId.slice(0, 8)}</span>
             <span className="text-xs text-gray-500 ml-2">{q.questionType}</span>
@@ -234,8 +197,8 @@ export function QCoreStudentPage() {
               <span
                 className={`text-xs ml-2 rounded px-1.5 py-0.5 ${
                   q.admissionReview === "approved"
-                    ? "bg-emerald-100 text-emerald-800"
-                    : "bg-amber-100 text-amber-800"
+                    ? "bg-muted text-foreground"
+                    : "bg-muted text-muted-foreground"
                 }`}
               >
                 {q.admissionReview}

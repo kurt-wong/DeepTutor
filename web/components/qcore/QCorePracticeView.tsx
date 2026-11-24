@@ -54,10 +54,8 @@ export function QCorePracticeView({
 
   return (
     <div>
-      <div className="mb-2 flex flex-wrap items-baseline gap-2 text-xs text-muted-foreground">
-        <span className="rounded bg-primary/10 px-2 py-0.5 font-medium text-primary">
-          QCore · {question.questionType}
-        </span>
+      <div className="mb-3 flex flex-wrap items-baseline gap-2 text-xs text-muted-foreground">
+        <span className="font-medium text-foreground">QCore · {question.questionType}</span>
         {identity && <span>{identity.source_document_id}</span>}
         {identity?.printed_number != null && <span>题号 {identity.printed_number}</span>}
         <span>revision {question.revisionId.slice(0, 8)}</span>
@@ -68,13 +66,13 @@ export function QCorePracticeView({
       ))}
 
       {bodies.map((body, i) => (
-        <BodyView key={body.localId || i} body={body} showPrintedNumber />
+        <BodyView key={body.localId || i} body={body} />
       ))}
 
-      <div className="mt-4 rounded border border-border bg-muted/30 p-3">
+      <div className="mt-4 border-t pt-4">
         <div className="text-xs font-medium text-muted-foreground mb-2">作答</div>
         {choiceBodies.map((body) => (
-          <div key={`pick-${body.localId}`} className="mb-2">
+          <div key={`pick-${body.localId}`} className="mb-3">
             <div className="text-xs text-muted-foreground mb-1">
               {body.printedNumber != null ? `第 ${body.printedNumber} 题` : body.localId}
               {isChoiceBody(body) && body.questionType !== "single_choice" ? "（多选）" : ""}
@@ -90,10 +88,10 @@ export function QCorePracticeView({
                     onClick={() =>
                       togglePick(body.localId, o.label, body.questionType !== "single_choice")
                     }
-                    className={`rounded px-3 py-1 text-sm border ${
+                    className={`rounded border px-3 py-1 text-sm ${
                       active
-                        ? "border-primary bg-primary/10 text-primary"
-                        : "border-border hover:bg-muted"
+                        ? "border-foreground font-medium"
+                        : "border-border hover:bg-muted/60"
                     }`}
                   >
                     {o.label}
@@ -110,7 +108,7 @@ export function QCorePracticeView({
             onChange={(e) => onAnswer(e.target.value)}
             rows={4}
             placeholder="输入作答（对照原题自检）"
-            className="w-full rounded border border-border bg-background p-2 text-sm"
+            className="w-full rounded border p-2 text-sm"
           />
         )}
         {choiceBodies.length > 0 && freeBodies.length === 0 && (
@@ -119,7 +117,7 @@ export function QCorePracticeView({
       </div>
 
       {revealed && (
-        <div className="mt-3 rounded border border-dashed border-border p-3 text-sm text-muted-foreground">
+        <div className="mt-4 border-t pt-3 text-sm text-muted-foreground">
           <div className="font-medium text-foreground mb-1">自检（无参考答案下发）</div>
           <p>{question.answersNote ?? "答案按可见性策略隐藏（review_only）"}</p>
           <p className="mt-1">{question.explanationNote ?? "解析按可见性策略隐藏（review_only）"}</p>
