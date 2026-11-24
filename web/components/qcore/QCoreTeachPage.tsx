@@ -10,13 +10,13 @@ import {
   COMPILER_BASE,
   CompilerError,
   fetchBundle,
-  lessonUrl,
   searchPhoto,
   type SearchCandidate,
   type SearchResult,
   type TeachingBundle,
 } from "@/lib/qcore-teach/client";
 import { askTutor, type FollowUpContext } from "@/components/qcore/LessonTurnAdapter";
+import MarkdownRenderer from "@/components/common/MarkdownRenderer";
 
 type Phase = "idle" | "searching" | "candidates" | "lesson";
 
@@ -67,13 +67,6 @@ function decisionLabel(decision: SearchResult["decision"]): string {
   }
 }
 
-function readableAnswer(text: string): string {
-  return text
-    .replace(/^#{1,6}\s*/gm, "")
-    .replace(/\*\*(.+?)\*\*/g, "$1")
-    .replace(/^\s*[-*]\s+/gm, "· ");
-}
-
 function buildTutorQuestion(bundle: TeachingBundle): string {
   const read = bundle.script.steps[0];
   const readText = read.board
@@ -110,6 +103,7 @@ export function QCoreTeachPage() {
   const frameRef = useRef<HTMLIFrameElement | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const questionContext = useRef<string>("");
+  const turnSessionRef = useRef<string | null>(null);
 
   useEffect(() => {
     setCompleted(false);
@@ -165,7 +159,11 @@ export function QCoreTeachPage() {
           .join(", ");
         throw new Error(`TeachingScript 未通过校验：${failed}`);
       }
+      if (!loaded.lesson_url) {
+        throw new Error("未获得讲题访问令牌（lesson_url 缺失），已拒绝进入播放。");
+      }
       questionContext.current = buildTutorQuestion(loaded);
+      turnSessionRef.current = null;
       setBundle(loaded);
       setStep({
         step_id: loaded.script.steps[0].step_id,
@@ -215,6 +213,7 @@ export function QCoreTeachPage() {
           questionContext.current,
           {
             signal: controller.signal,
+            sessionId: turnSessionRef.current,
             onDelta: (text) => {
               setFollowUps((prev) =>
                 prev.map((entry) =>
@@ -229,6 +228,7 @@ export function QCoreTeachPage() {
             entry.id === id ? { ...entry, answer: result.text, status: "done" } : entry,
           ),
         );
+        if (result.sessionId) turnSessionRef.current = result.sessionId;
         frameRef.current?.contentWindow?.postMessage(
           { source: "deeptutor", type: "followup_answer", payload: { text: result.text } },
           "*",
@@ -286,6 +286,7 @@ export function QCoreTeachPage() {
     setFollowUps([]);
     setError(null);
     setPreview(null);
+    turnSessionRef.current = null;
   };
 
   const candidates = search?.candidates ?? [];
@@ -448,7 +449,6 @@ export function QCoreTeachPage() {
                           disabled={disabled}
                           onClick={() => void startLesson(candidate)}
                           className="mt-1 rounded bg-foreground px-3 py-1.5 text-xs text-background disabled:cursor-not-allowed disabled:opacity-40"
-                          title={disabled ? "低置信匹配不允许进入讲题" : "进入讲题"}
                         >
                           进入讲题
                         </button>
@@ -501,7 +501,7 @@ export function QCoreTeachPage() {
                   ref={frameRef}
                   data-testid="teach-lesson-frame"
                   title="Interactive Lesson"
-                  src={lessonUrl(bundle.question_id, bundle.revision_id)}
+                  src={bundle.lesson_url}
                   className="h-[70vh] min-h-[520px] w-full bg-white"
                 />
               </div>
@@ -552,12 +552,14 @@ export function QCoreTeachPage() {
                       >                        <div className="font-medium">
                           [{entry.stepId}] {entry.question}
                         </div>
-                        <div className="mt-1 whitespace-pre-wrap text-gray-700">
-                          {entry.answer
-                            ? readableAnswer(entry.answer)
-                            : entry.status === "pending"
-                              ? "等待 DeepTutor 回答…"
-                              : ""}
+                        <div className="mt-1 text-gray-700">
+                          {entry.answer ? (
+                            <MarkdownRenderer content={entry.answer} className="text-[11px]" />
+                          ) : entry.status === "pending" ? (
+                            "等待 DeepTutor 回答…"
+                          ) : (
+                            ""
+                          )}
                         </div>
                         {entry.status === "error" && (
                           <div className="mt-1 text-rose-700">

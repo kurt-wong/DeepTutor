@@ -29,39 +29,13 @@ interface TurnOptions {
   timeoutMs?: number;
   onDelta?: (text: string) => void;
   signal?: AbortSignal;
+  /** Reuse the lesson's conversation for follow-ups instead of a new session. */
+  sessionId?: string | null;
 }
 
-let cachedWorkspaceId: string | null = null;
-
-/** Pick a ready content workspace so the Turn has a real folder to bind to. */
-export async function resolveWorkspaceId(): Promise<string> {
-  if (cachedWorkspaceId !== null) return cachedWorkspaceId;
-  try {
-    const response = await fetch("/api/settings/workspace/registrations", {
-      cache: "no-store",
-    });
-    if (!response.ok) {
-      cachedWorkspaceId = "";
-      return "";
-    }
-    const body = (await response.json()) as {
-      workspaces?: { workspace_id?: string; status?: string; archived?: boolean }[];
-    };
-    const ready = (body.workspaces ?? []).find(
-      (workspace) => workspace.status === "ready" && !workspace.archived,
-    );
-    cachedWorkspaceId = ready?.workspace_id ?? "";
-    return cachedWorkspaceId;
-  } catch {
-    cachedWorkspaceId = "";
-    return "";
-  }
-}
-
-function socketUrl(workspaceId: string): string {
+function socketUrl(): string {
   const url = new URL(scopedUrl("/ws"), window.location.href);
   url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
-  url.searchParams.set("dt_workspace", workspaceId);
   return url.toString();
 }
 
@@ -94,17 +68,14 @@ export async function askTutor(
   question: string,
   options: TurnOptions = {},
 ): Promise<TurnAnswer> {
-  const { timeoutMs = 90000, onDelta, signal } = options;
-  const workspaceId = await resolveWorkspaceId();
-  if (!workspaceId) {
-    throw new Error("没有可用的 DeepTutor workspace（Turn 无法绑定目录）");
-  }
+  const { timeoutMs = 90000, onDelta, signal, sessionId } = options;
   return new Promise((resolve, reject) => {
     let settled = false;
     let text = "";
     let turnId = "";
-    let sessionId = "";
-    const socket = new WebSocket(socketUrl(workspaceId));
+    let activeSessionId = "";
+    let startAttempts = 0;
+    const socket = new WebSocket(socketUrl());
     const timer = window.setTimeout(() => {
       finish(new Error("Turn 超时（90s）"));
     }, timeoutMs);
@@ -124,7 +95,7 @@ export async function askTutor(
       settled = true;
       cleanup();
       if (error) reject(error);
-      else resolve({ text, turnId, sessionId });
+      else resolve({ text, turnId, sessionId: activeSessionId || sessionId || "" });
     }
 
     function onAbort() {
@@ -133,22 +104,26 @@ export async function askTutor(
 
     signal?.addEventListener("abort", onAbort);
 
-    socket.onerror = () => finish(new Error("Turn WebSocket 连接失败"));
-    socket.onclose = () => {
-      if (!settled && !text) finish(new Error("Turn 连接被关闭"));
-    };
-    socket.onopen = () => {
+    function startTurn() {
+      startAttempts += 1;
       socket.send(
         JSON.stringify({
           type: "start_turn",
           protocol_version: "2.0",
           content: buildFollowUpPrompt(context, question),
           capability: "chat",
-          session_id: null,
-          workspace_id: workspaceId,
-          client_submission_id: `lesson-${context.step_id}-${Date.now()}`,
+          session_id: sessionId ?? null,
+          client_submission_id: `lesson-${context.step_id}-${Date.now()}-${startAttempts}`,
         }),
       );
+    }
+
+    socket.onerror = () => finish(new Error("Turn WebSocket 连接失败"));
+    socket.onclose = () => {
+      if (!settled && !text) finish(new Error("Turn 连接被关闭"));
+    };
+    socket.onopen = () => {
+      startTurn();
     };
     socket.onmessage = (event) => {
       let data: Record<string, unknown>;
@@ -159,11 +134,24 @@ export async function askTutor(
       }
       const type = String(data.type ?? "");
       if (type === "protocol_error" || type === "error") {
-        finish(new Error(String(data.message ?? data.error_code ?? "Turn 失败")));
+        const message = String(data.message ?? data.error_code ?? "Turn 失败");
+        // The previous turn can still be "recovering" for a moment after `done`;
+        // retry the same session instead of surfacing a spurious failure.
+        if (
+          message.includes("active or recovering turn") &&
+          startAttempts < 5 &&
+          !text
+        ) {
+          window.setTimeout(() => {
+            if (!settled) startTurn();
+          }, 1200 + startAttempts * 400);
+          return;
+        }
+        finish(new Error(message));
         return;
       }
       if (type === "session") {
-        sessionId = String(data.session_id ?? sessionId);
+        activeSessionId = String(data.session_id ?? activeSessionId);
         return;
       }
       if (type === "content") {

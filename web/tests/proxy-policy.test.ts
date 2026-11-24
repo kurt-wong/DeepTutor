@@ -35,6 +35,10 @@ test("isBackendPath matches /api and /ws paths only", () => {
   assert.equal(isBackendPath("/chat"), false);
   assert.equal(isBackendPath("/apidocs"), false); // no trailing slash → not backend
   assert.equal(isBackendPath("/logo.png"), false);
+  // Same-origin Next handlers for the QCore teach proxy must not be rewritten.
+  assert.equal(isBackendPath("/api/qcore-teach/search"), false);
+  assert.equal(isBackendPath("/api/qcore-teach/jobs/abc123"), false);
+  assert.equal(isBackendPath("/api/qcore-teach/bundle"), false);
   assert.equal(isWebSocketPath("/ws"), true);
   assert.equal(isWebSocketPath("/ws/books"), true);
   assert.equal(isWebSocketPath("/ws-extra"), false);

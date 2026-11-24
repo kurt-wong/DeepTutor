@@ -53,6 +53,10 @@ test("raw fetch is limited to the shared API client and media preview", () => {
     // so its adapter intentionally uses a dedicated fetch wrapper instead of
     // the DeepTutor API client.
     "lib/qcore-adapter/client.ts",
+    // AITutor: the Teaching Script Compiler is a separate loopback service that
+    // authenticates with a server-only token; only Next route handlers call it,
+    // through this dedicated server-side client.
+    "lib/qcore-teach/server-client.ts",
   ]);
   const violations = allSources
     .filter((file) => /\bfetch\(/.test(fs.readFileSync(file, "utf8")))

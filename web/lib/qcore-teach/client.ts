@@ -1,6 +1,8 @@
 // Read-only client for the Teaching Script Compiler (pilot service :8820).
 // No QCore write path exists here: the compiler only serves published revisions.
 
+import { apiFetch } from "@/shared/api/client";
+
 export interface MatchEvidence {
   type: "number" | "text" | "formula" | string;
   value: string;
@@ -101,6 +103,9 @@ export interface TeachingBundle {
     content_hash: string;
   };
   script: TeachingScript;
+  /** Server-minted lesson URL containing the short-lived access token. */
+  lesson_url?: string;
+  access_token_expires_at?: number | null;
 }
 
 export const COMPILER_BASE =
@@ -137,39 +142,60 @@ async function parseError(response: Response): Promise<CompilerError> {
   return new CompilerError(message, response.status, code);
 }
 
+export interface SearchJob {
+  job_id: string;
+  status: "queued" | "running" | "succeeded" | "failed";
+  stage?: string;
+  error?: string;
+  result?: SearchResult;
+  duration_s?: number;
+}
+
+const SEARCH_POLL_MS = 1500;
+const SEARCH_TIMEOUT_MS = 300000;
+
+/** Upload once, then poll the same-origin job proxy (no service token in browser). */
 export async function searchPhoto(file: File): Promise<SearchResult> {
   const form = new FormData();
   form.append("file", file);
-  const response = await fetch(`${COMPILER_BASE}/api/search/photo`, {
+  const created = await apiFetch("/api/qcore-teach/search", {
     method: "POST",
     body: form,
-    cache: "no-store",
   });
-  const body = (await response.json().catch(() => ({}))) as SearchResult;
-  if (!response.ok) {
-    if (body.decision === "ocr_failed") return body;
-    throw await parseError(response);
+  if (!created.ok) throw await parseError(created);
+  const job = (await created.json()) as SearchJob;
+  if (!job.job_id) throw new CompilerError("拍照检索未返回 job id", 502);
+
+  const startedAt = Date.now();
+  let last: SearchJob = job;
+  while (Date.now() - startedAt < SEARCH_TIMEOUT_MS) {
+    const response = await apiFetch(
+      `/api/qcore-teach/jobs/${encodeURIComponent(job.job_id)}`,
+    );
+    if (!response.ok) throw await parseError(response);
+    last = (await response.json()) as SearchJob;
+    if (last.status === "succeeded" && last.result) return last.result;
+    if (last.status === "failed") {
+      return {
+        search_id: job.job_id,
+        decision: "ocr_failed",
+        requires_confirmation: true,
+        may_teach: false,
+        message: last.error || "OCR 服务未能返回可用文本，本轮不进入题目匹配。",
+        candidates: [],
+      } as SearchResult;
+    }
+    await new Promise((resolve) => setTimeout(resolve, SEARCH_POLL_MS));
   }
-  return body;
+  throw new CompilerError("拍照检索超时（5 分钟），请重试", 504);
 }
 
 export async function fetchBundle(
   questionId: string,
   revisionId: string,
 ): Promise<TeachingBundle> {
-  const url = `${COMPILER_BASE}/api/teaching-bundles/${encodeURIComponent(
-    questionId,
-  )}?revision_id=${encodeURIComponent(revisionId)}&language=zh-CN`;
-  const response = await fetch(url, { cache: "no-store" });
+  const params = new URLSearchParams({ question_id: questionId, revision_id: revisionId });
+  const response = await apiFetch(`/api/qcore-teach/bundle?${params.toString()}`);
   if (!response.ok) throw await parseError(response);
   return (await response.json()) as TeachingBundle;
-}
-
-export function lessonUrl(questionId: string, revisionId: string): string {
-  const params = new URLSearchParams({
-    question_id: questionId,
-    revision_id: revisionId,
-    api: COMPILER_BASE,
-  });
-  return `${LESSON_BASE}/?${params.toString()}`;
 }

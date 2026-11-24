@@ -8,6 +8,10 @@ import type { SearchResult, TeachingBundle } from "@/lib/qcore-teach/client";
 const searchPhoto = vi.fn();
 const fetchBundle = vi.fn();
 
+vi.mock("@/components/common/MarkdownRenderer", () => ({
+  default: ({ content }: { content: string }) => <span>{content}</span>,
+}));
+
 vi.mock("@/lib/qcore-teach/client", async () => {
   const actual = await vi.importActual<typeof import("@/lib/qcore-teach/client")>(
     "@/lib/qcore-teach/client",
@@ -66,6 +70,7 @@ function bundle(): TeachingBundle {
       title: "1题 · 已知集合",
       content_hash: "a".repeat(64),
     },
+    lesson_url: "http://lesson.test/?question_id=q1&access_token=scoped-token",
     script: {
       script_id: "ts_x",
       question_id: "11111111-1111-1111-1111-111111111111",

@@ -27,6 +27,9 @@ export function isRetiredPagePath(pathname: string): boolean {
 // relative URLs (e.g. `:3782/api/...` or `.../ws`) and let the rewrite
 // bridge the origin gap.
 export function isBackendPath(pathname: string): boolean {
+  // Same-origin Next route handlers own the QCore teach proxy; they must not
+  // be rewritten to the FastAPI backend.
+  if (pathname.startsWith("/api/qcore-teach/")) return false;
   return (
     pathname.startsWith("/api/") ||
     isWebSocketPath(pathname) ||
