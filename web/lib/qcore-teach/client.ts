@@ -152,7 +152,8 @@ export interface SearchJob {
 }
 
 const SEARCH_POLL_MS = 1500;
-const SEARCH_TIMEOUT_MS = 300000;
+// 3 OCR attempts × 120 s + queue/overhead; keep the browser polling beyond that.
+const SEARCH_TIMEOUT_MS = 480000;
 
 /** Upload once, then poll the same-origin job proxy (no service token in browser). */
 export async function searchPhoto(file: File): Promise<SearchResult> {
@@ -187,7 +188,7 @@ export async function searchPhoto(file: File): Promise<SearchResult> {
     }
     await new Promise((resolve) => setTimeout(resolve, SEARCH_POLL_MS));
   }
-  throw new CompilerError("拍照检索超时（5 分钟），请重试", 504);
+  throw new CompilerError("拍照检索超时（8 分钟），请重试", 504);
 }
 
 export async function fetchBundle(
