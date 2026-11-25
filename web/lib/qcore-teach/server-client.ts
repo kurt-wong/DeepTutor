@@ -26,6 +26,14 @@ export function createSearchJob(form: FormData): Promise<Response> {
   return request("/api/search/photo/jobs", { method: "POST", body: form });
 }
 
+export function createTextSearch(text: string): Promise<Response> {
+  return request("/api/search/text", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ text }),
+  });
+}
+
 export function getSearchJob(jobId: string): Promise<Response> {
   return request(`/api/search/jobs/${encodeURIComponent(jobId)}`);
 }

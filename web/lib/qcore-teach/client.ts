@@ -39,6 +39,7 @@ export interface SearchResult {
   message: string;
   decision_reason?: string;
   candidates: SearchCandidate[];
+  structure?: SearchStructure;
   ocr?: {
     status: string;
     engine?: string;
@@ -48,6 +49,27 @@ export interface SearchResult {
     text?: string;
   };
   llm?: { enabled: boolean; status: string; error: string | null };
+}
+
+export interface StructureUnit {
+  index: number;
+  number: string;
+  chars: number;
+  start: number;
+  end: number;
+  text: string;
+  preview: string;
+}
+
+export interface SearchStructure {
+  status: "reliable" | "ambiguous" | "incomplete" | "invalid";
+  requires_selection: boolean;
+  reasons: string[];
+  prefix_chars: number;
+  prefix_is_tail: boolean;
+  prefix: string;
+  prefix_preview: string;
+  units: StructureUnit[];
 }
 
 export interface BoardBlock {
@@ -199,4 +221,15 @@ export async function fetchBundle(
   const response = await apiFetch(`/api/qcore-teach/bundle?${params.toString()}`);
   if (!response.ok) throw await parseError(response);
   return (await response.json()) as TeachingBundle;
+}
+
+/** Search a user-selected OCR segment (compiler text-search contract). */
+export async function searchText(text: string): Promise<SearchResult> {
+  const response = await apiFetch("/api/qcore-teach/search-text", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ text }),
+  });
+  if (!response.ok) throw await parseError(response);
+  return (await response.json()) as SearchResult;
 }

@@ -11,6 +11,7 @@ import {
   CompilerError,
   fetchBundle,
   searchPhoto,
+  searchText,
   type SearchCandidate,
   type SearchResult,
   type TeachingBundle,
@@ -18,7 +19,7 @@ import {
 import { askTutor, type FollowUpContext } from "@/components/qcore/LessonTurnAdapter";
 import MarkdownRenderer from "@/components/common/MarkdownRenderer";
 
-type Phase = "idle" | "searching" | "candidates" | "lesson";
+type Phase = "idle" | "searching" | "target_selection" | "candidates" | "lesson";
 
 interface FollowUpEntry {
   id: string;
@@ -96,6 +97,8 @@ export function QCoreTeachPage() {
   const [error, setError] = useState<string | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [dragging, setDragging] = useState(false);
+  const [selectedUnits, setSelectedUnits] = useState<number[]>([]);
+  const [includePrefix, setIncludePrefix] = useState(true);
   const [step, setStep] = useState<LessonStepState | null>(null);
   const [completed, setCompleted] = useState(false);
   const [followUps, setFollowUps] = useState<FollowUpEntry[]>([]);
@@ -114,12 +117,18 @@ export function QCoreTeachPage() {
     setSearch(null);
     setSelected(null);
     setBundle(null);
+    setSelectedUnits([]);
+    setIncludePrefix(true);
     setPhase("searching");
     setPreview(file.type.startsWith("image/") ? URL.createObjectURL(file) : null);
     try {
       const result = await searchPhoto(file);
       setSearch(result);
-      setPhase("candidates");
+      if (result.structure?.requires_selection && result.ocr?.text) {
+        setPhase("target_selection");
+      } else {
+        setPhase("candidates");
+      }
       if (result.decision === "ocr_failed") {
         setError(result.message || "OCR 服务不可用");
       }
@@ -128,6 +137,37 @@ export function QCoreTeachPage() {
       setError(err instanceof Error ? err.message : String(err));
     }
   }, []);
+
+  const runSelectedSearch = useCallback(async () => {
+    const structure = search?.structure;
+    if (!structure || selectedUnits.length === 0) {
+      setError("请先明确选择目标题目；系统不会在整页多题时自动猜。");
+      return;
+    }
+    const parts: string[] = [];
+    if (includePrefix && structure.prefix && !structure.prefix_is_tail) {
+      parts.push(structure.prefix);
+    }
+    for (const index of [...selectedUnits].sort((a, b) => a - b)) {
+      const unit = structure.units.find((item) => item.index === index);
+      if (unit) parts.push(unit.text);
+    }
+    const query = parts.join("\n").trim();
+    if (!query) {
+      setError("选中题目没有可用文本，请重新拍照。");
+      return;
+    }
+    setError(null);
+    setPhase("searching");
+    try {
+      const result = await searchText(query);
+      setSearch(result);
+      setPhase("candidates");
+    } catch (err) {
+      setPhase("target_selection");
+      setError(err instanceof Error ? err.message : String(err));
+    }
+  }, [search, selectedUnits, includePrefix]);
 
   const onFile = useCallback(
     (event: ChangeEvent<HTMLInputElement>) => {
@@ -286,6 +326,8 @@ export function QCoreTeachPage() {
     setFollowUps([]);
     setError(null);
     setPreview(null);
+    setSelectedUnits([]);
+    setIncludePrefix(true);
     turnSessionRef.current = null;
   };
 
@@ -362,6 +404,86 @@ export function QCoreTeachPage() {
               // eslint-disable-next-line @next/next/no-img-element
               <img src={preview} alt="待识别题目" className="mt-4 max-h-56 rounded border" />
             )}
+          </div>
+        )}
+
+        {phase === "target_selection" && search?.structure && (
+          <div data-testid="teach-target-selection" className="space-y-3">
+            <div className="rounded border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
+              <div className="font-medium">需要先确认目标题目</div>
+              <p className="mt-1 text-xs">
+                这张照片包含多道题或题段边界不确定。系统不会替用户猜；请选择目标题后再检索。
+              </p>
+              {search.structure.reasons.length > 0 && (
+                <p className="mt-1 text-[11px] opacity-70">
+                  结构信号：{search.structure.reasons.join(" / ")}
+                </p>
+              )}
+            </div>
+
+            {search.structure.prefix && (
+              <label className="flex gap-2 rounded border bg-muted/20 p-2 text-xs">
+                <input
+                  type="checkbox"
+                  checked={includePrefix}
+                  disabled={search.structure.prefix_is_tail}
+                  onChange={(event) => setIncludePrefix(event.target.checked)}
+                />
+                <span>
+                  {search.structure.prefix_is_tail ? "检测到上一题尾部，已默认排除：" : "共享材料/前缀："}
+                  <span className="ml-1 whitespace-pre-wrap text-gray-700">
+                    {search.structure.prefix_preview}
+                  </span>
+                </span>
+              </label>
+            )}
+
+            <div className="space-y-2">
+              {search.structure.units.map((unit) => {
+                const checked = selectedUnits.includes(unit.index);
+                return (
+                  <label
+                    key={unit.index}
+                    data-testid={`teach-target-unit-${unit.index}`}
+                    className={`flex cursor-pointer gap-2 rounded border p-2 text-xs ${
+                      checked ? "border-foreground/50 bg-muted/30" : "border-border"
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={(event) => {
+                        setSelectedUnits((prev) =>
+                          event.target.checked
+                            ? [...prev, unit.index].sort((a, b) => a - b)
+                            : prev.filter((index) => index !== unit.index),
+                        );
+                      }}
+                    />
+                    <span className="min-w-0">
+                      <span className="mr-2 font-mono">#{unit.number}</span>
+                      <span className="whitespace-pre-wrap text-gray-700">{unit.preview}</span>
+                    </span>
+                  </label>
+                );
+              })}
+            </div>
+
+            <div className="flex items-center gap-2 text-xs text-gray-500">
+              <button
+                type="button"
+                data-testid="teach-target-confirm"
+                disabled={selectedUnits.length === 0}
+                onClick={() => void runSelectedSearch()}
+                className="rounded bg-foreground px-3 py-1.5 text-background disabled:opacity-40"
+              >
+                用选中题目检索
+              </button>
+              <button type="button" onClick={reset} className="rounded border px-3 py-1.5">
+                重新拍照
+              </button>
+              <span>选择后才构造 Query；不会自动把整页文本当成一道题。</span>
+            </div>
           </div>
         )}
 

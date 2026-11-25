@@ -6,6 +6,7 @@ import { buildFollowUpPrompt } from "@/components/qcore/LessonTurnAdapter";
 import type { SearchResult, TeachingBundle } from "@/lib/qcore-teach/client";
 
 const searchPhoto = vi.fn();
+const searchText = vi.fn();
 const fetchBundle = vi.fn();
 
 vi.mock("@/components/common/MarkdownRenderer", () => ({
@@ -19,6 +20,7 @@ vi.mock("@/lib/qcore-teach/client", async () => {
   return {
     ...actual,
     searchPhoto: (...args: unknown[]) => searchPhoto(...args),
+    searchText: (...args: unknown[]) => searchText(...args),
     fetchBundle: (...args: unknown[]) => fetchBundle(...args),
     lessonUrl: () => "http://lesson.test/?question_id=q1",
   };
@@ -119,7 +121,41 @@ describe("QCoreTeachPage", () => {
   beforeEach(() => {
     Object.assign(URL, { createObjectURL: vi.fn(() => "blob:test") });
     searchPhoto.mockReset();
+    searchText.mockReset();
     fetchBundle.mockReset();
+  });
+
+  it("requires an explicit target before searching a multi-question photo", async () => {
+    searchPhoto.mockResolvedValue(
+      result({
+        structure: {
+          status: "ambiguous",
+          requires_selection: true,
+          reasons: ["MULTIPLE_QUESTIONS"],
+          prefix_chars: 0,
+          prefix_is_tail: false,
+          prefix: "",
+          prefix_preview: "",
+          units: [
+            { index: 0, number: "21", chars: 30, start: 0, end: 30, text: "21. 第一题", preview: "21. 第一题" },
+            { index: 1, number: "22", chars: 30, start: 30, end: 60, text: "22. 第二题", preview: "22. 第二题" },
+          ],
+        },
+        ocr: { status: "ok", text: "21. 第一题\n22. 第二题" },
+      }),
+    );
+    searchText.mockResolvedValue(result());
+    render(<QCoreTeachPage />);
+    await upload();
+    expect(await screen.findByTestId("teach-target-selection")).toBeTruthy();
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("teach-target-unit-0"));
+      fireEvent.click(screen.getByTestId("teach-target-confirm"));
+      await Promise.resolve();
+    });
+    await waitFor(() => {
+      expect(searchText).toHaveBeenCalledWith("21. 第一题");
+    });
   });
 
   it("disables teaching for a low-confidence match (fail closed)", async () => {
