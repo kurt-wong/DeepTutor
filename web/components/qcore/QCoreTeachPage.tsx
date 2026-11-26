@@ -148,6 +148,12 @@ export function QCoreTeachPage() {
     if (includePrefix && structure.prefix && !structure.prefix_is_tail) {
       parts.push(structure.prefix);
     }
+    const contexts: string[] = [];
+    for (const index of [...selectedUnits].sort((a, b) => a - b)) {
+      const unit = structure.units.find((item) => item.index === index);
+      if (unit?.context && !contexts.includes(unit.context)) contexts.push(unit.context);
+    }
+    parts.push(...contexts);
     for (const index of [...selectedUnits].sort((a, b) => a - b)) {
       const unit = structure.units.find((item) => item.index === index);
       if (unit) parts.push(unit.text);
@@ -463,6 +469,11 @@ export function QCoreTeachPage() {
                     <span className="min-w-0">
                       <span className="mr-2 font-mono">#{unit.number}</span>
                       <span className="whitespace-pre-wrap text-gray-700">{unit.preview}</span>
+                      {unit.context && (
+                        <span className="mt-1 block text-[10px] text-amber-800">
+                          共享材料：{unit.context.slice(0, 120)}
+                        </span>
+                      )}
                     </span>
                   </label>
                 );

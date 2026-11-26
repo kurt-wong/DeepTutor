@@ -58,6 +58,7 @@ export interface StructureUnit {
   start: number;
   end: number;
   text: string;
+  context: string;
   preview: string;
 }
 

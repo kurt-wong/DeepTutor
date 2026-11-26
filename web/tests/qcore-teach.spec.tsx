@@ -137,8 +137,8 @@ describe("QCoreTeachPage", () => {
           prefix: "",
           prefix_preview: "",
           units: [
-            { index: 0, number: "21", chars: 30, start: 0, end: 30, text: "21. 第一题", preview: "21. 第一题" },
-            { index: 1, number: "22", chars: 30, start: 30, end: 60, text: "22. 第二题", preview: "22. 第二题" },
+            { index: 0, number: "21", chars: 30, start: 0, end: 30, text: "21. 第一题", context: "共享材料A", preview: "21. 第一题" },
+            { index: 1, number: "22", chars: 30, start: 30, end: 60, text: "22. 第二题", context: "共享材料A", preview: "22. 第二题" },
           ],
         },
         ocr: { status: "ok", text: "21. 第一题\n22. 第二题" },
@@ -154,7 +154,7 @@ describe("QCoreTeachPage", () => {
       await Promise.resolve();
     });
     await waitFor(() => {
-      expect(searchText).toHaveBeenCalledWith("21. 第一题");
+      expect(searchText).toHaveBeenCalledWith("共享材料A\n21. 第一题");
     });
   });
 
